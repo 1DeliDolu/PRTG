@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import type { PluginOptions } from '@grafana/plugin-e2e'
 import { defineConfig, devices } from '@playwright/test'
 import { dirname } from 'node:path'
