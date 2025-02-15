@@ -1,0 +1,97 @@
+@startuml
+skinparam backgroundColor white
+skinparam classAttributeIconSize 0
+
+title PRTG Grafana Datasource Plugin Architecture
+
+class DataSource {
+    + options: MyDataSourceOptions
+    + constructor(instanceSettings)
+    + query(request)
+    + testDatasource()
+    + getGroups()
+    + getDevices()
+    + getSensors()
+    + getChannels(objid)
+}
+
+class PRTGAPI {
+    + baseURL: string
+    + apiKey: string
+    + timeout: duration
+    + GetGroups()
+    + GetDevices()
+    + GetSensors()
+    + GetChannels(objid)
+    + GetHistoricalData(sensorId, startDate, endDate)
+    - buildApiUrl(method, params)
+    - baseExecuteRequest(endpoint, params)
+}
+
+class MyQuery {
+    + queryType: string
+    + group: string
+    + device: string
+    + sensor: string
+    + channel: string
+    + objid: number
+    + includeGroupName: boolean
+    + includeDeviceName: boolean
+    + includeSensorName: boolean
+}
+
+interface PRTGItem {
+    + active: boolean
+    + active_raw: number
+    + channel: string
+    + channel_raw: string
+    + datetime: string
+    + datetime_raw: number
+    + device: string
+    + device_raw: string
+    + group: string
+    + group_raw: string
+    + message: string
+    + message_raw: string
+    + objid: number
+    + objid_raw: number
+    + priority: string
+    + priority_raw: number
+    + sensor: string
+    + sensor_raw: string
+    + status: string
+    + status_raw: number
+    + tags: string
+    + tags_raw: string
+}
+
+class QueryEditor {
+    + query: MyQuery
+    + onChange(query)
+    + onRunQuery()
+    - onQueryTypeChange()
+    - onGroupChange()
+    - onDeviceChange()
+    - onSensorChange()
+    - onChannelChange()
+}
+
+class ConfigEditor {
+    + options: MyDataSourceOptions
+    + onOptionsChange()
+    + onPathChange()
+    + onAPIKeyChange()
+    + onCacheTimeChange()
+}
+
+DataSource *--> PRTGAPI : uses
+DataSource --> MyQuery : processes
+QueryEditor --> MyQuery : edits
+PRTGAPI ..> PRTGItem : returns
+DataSource --> ConfigEditor : configures
+
+note right of DataSource : Main plugin class\nHandles all data requests
+note right of PRTGAPI : Handles PRTG API communication
+note right of QueryEditor : UI for query building
+
+@enduml

@@ -1,0 +1,16 @@
+flowchart TD
+    A[Start] --> B{Config Valid?}
+    B -->|No| C[Show Error]
+    B -->|Yes| D[Initialize API]
+    D --> E{Select Query Type}
+    E -->|Groups| G[Get Groups]
+    E -->|Devices| H[Get Devices]
+    E -->|Sensors| I[Get Sensors]
+    E -->|Historical| J[Get Historical Data]
+    G --> K
+    H --> K
+    I --> K
+    J --> K
+    K --> L[Return Data]
+    L --> M[Display in Grafana]
+    M --> N[End]

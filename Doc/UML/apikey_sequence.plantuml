@@ -1,0 +1,26 @@
+@startuml apikey_sequence
+skinparam sequenceMessageAlign center
+
+participant "User" as User
+participant "ConfigEditor" as ConfigEditor
+participant "SecureJsonData" as SecureJsonData
+participant "JsonData" as JsonData
+participant "Backend" as Backend
+participant "PRTG" as PRTG
+
+User -> ConfigEditor: Enter Path
+User -> ConfigEditor: Enter API Key
+User -> ConfigEditor: Enter Cache Time
+ConfigEditor -> SecureJsonData: Store API Key (onAPIKeyChange)
+ConfigEditor -> JsonData: Store Path (onPathChange)
+ConfigEditor -> JsonData: Store Cache Time (onCacheTimeChange)
+User -> ConfigEditor: Click Reset API Key
+ConfigEditor -> SecureJsonData: Clear API Key (onResetAPIKey)
+ConfigEditor -> Backend: Save & Test Connection
+Backend -> Backend: Process Configuration
+Backend -> PRTG: Test Connection with API Key
+PRTG --> Backend: Return Response
+Backend --> ConfigEditor: Update Status
+ConfigEditor --> User: Display Status
+
+@enduml

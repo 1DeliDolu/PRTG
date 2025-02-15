@@ -1,0 +1,30 @@
+@startuml Prtg_Flow
+title PRTG to Grafana Data Flow
+
+skinparam backgroundColor white
+skinparam roundcorner 20
+
+start
+if (Config Valid?) then (yes)
+    :Initialize API;
+    switch (Select Query Type)
+    case (Status)
+        :Get Status List;
+    case (Groups)
+        :Get Groups;
+    case (Devices)
+        :Get Devices;
+    case (Sensors)
+        :Get Sensors;
+    case (Historical)
+        :Get Historical Data;
+    endswitch
+    :Process Response;
+    :Return Data;
+    :Display in Grafana;
+else (no)
+    :Show Error;
+endif
+stop
+
+@enduml

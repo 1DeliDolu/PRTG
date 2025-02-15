@@ -1,0 +1,26 @@
+@startuml
+' Sequence diagram showing Grafana-PRTG plugin data flow sequenceDiagram
+
+participant Grafana
+participant Plugin
+participant Cache
+participant PRTG_API
+
+Grafana -> Plugin: Query Request
+Plugin -> Plugin: Validate Query
+Plugin -> Cache: Check Cache
+
+alt Data in Cache
+    Cache --> Plugin: Return Cached Data
+else No Cache
+    Plugin -> PRTG_API: API Request
+    PRTG_API --> Plugin: API Response
+    Plugin -> Cache: Store in Cache
+end
+
+Plugin -> Plugin: Transform Data
+Plugin --> Grafana: Return Results
+
+note over Plugin,PRTG_API: Includes error handling\nand retry logic
+
+@enduml

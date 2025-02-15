@@ -1,0 +1,29 @@
+class ConfigEditor {
+    + onOptionsChange
+    + options: MyDataSourceOptions
+    + jsonData
+    + secureJsonFields
+    + secureJsonData: MySecureJsonData
+    --
+    + onPathChange(event: ChangeEvent)
+    + onAPIKeyChange(event: ChangeEvent)
+    + onResetAPIKey()
+    + onCacheTimeChange(event: ChangeEvent)
+    + render()
+}
+
+interface MyDataSourceOptions {
+    + jsonData
+    + secureJsonFields
+    + secureJsonData
+}
+
+interface MySecureJsonData {
+    + apiKey: string
+}
+
+ConfigEditor --|> Props
+Props --|> DataSourcePluginOptionsEditorProps
+DataSourcePluginOptionsEditorProps *-- MyDataSourceOptions
+DataSourcePluginOptionsEditorProps *-- MySecureJsonData
+
