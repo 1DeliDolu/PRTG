@@ -1,0 +1,40 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "datasource",
+  "name": "PRTG",
+  "id": "maxmarkusprogram-prtg-datasource",
+  "metrics": true,
+  "backend": true,
+  "executable": "gpx_prtg",
+  "info": {
+    "description": "",
+    "author": {
+      "name": "Maxmarkusprogram"
+    },
+    "keywords": ["datasource"],
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
+    },
+    "links": [],
+    "screenshots": [],
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
+  },
+  "routes": [
+    {
+      "path": "{{.JsonData.url}}",
+      "method": "GET",
+      "urlParams": [
+        {
+          "name": "apitoken",
+          "content": "{{.SecureJsonData.apiKey}}"
+        }
+      ]
+    }
+  ],
+  "dependencies": {
+    "grafanaDependency": ">=10.4.0",
+    "plugins": []
+  }
+}
