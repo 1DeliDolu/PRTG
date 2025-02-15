@@ -11,6 +11,7 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
+	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/maxmarkusprogram/prtg/pkg/models"
 )
 
@@ -67,7 +68,6 @@ func parsePRTGDateTime(datetime string) (time.Time, string, error) {
 		"02.01.2006 15:04:05",
 		time.RFC3339,
 	}
-
 	var parseErr error
 	for _, layout := range layouts {
 		parsedTime, err := time.Parse(layout, datetime)
@@ -77,13 +77,53 @@ func parsePRTGDateTime(datetime string) (time.Time, string, error) {
 		}
 		parseErr = err
 	}
-
 	backend.Logger.Error("Date parsing failed for all formats",
 		"datetime", datetime,
 		"error", parseErr)
 	return time.Time{}, "", fmt.Errorf("failed to parse time '%s': %w", datetime, parseErr)
 }
 
+// Annotations returns annotations for a time series.
+func (d *Datasource) AnnotationsQueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
+	response := backend.NewQueryDataResponse()
+
+	for _, query := range req.Queries {
+		var qm queryModel
+		if err := json.Unmarshal(query.JSON, &qm); err != nil {
+			return nil, err
+		}
+		fromTime := query.TimeRange.From.UnixMilli()
+		toTime := query.TimeRange.To.UnixMilli()
+		for _, q := range req.Queries {
+			// Example: Fetch annotation events from PRTG API (Modify as per actual API)
+			annotations, err := d.api.GetAnnotations(fromTime, toTime, qm.ObjectId) // Replace with actual API call
+			if err != nil {
+				backend.Logger.Error("Failed to fetch annotations", "error", err)
+				response.Responses[q.RefID] = backend.DataResponse{
+					Error: err,
+				}
+				continue
+			}
+			// Convert API response to Grafana annotation format
+			frame := data.NewFrame("annotations",
+				data.NewField("time", nil, []time.Time{}),
+				data.NewField("text", nil, []string{}),
+				data.NewField("tags", nil, [][]string{}),
+			)
+
+			for _, annotation := range annotations {
+				timestamp := annotation.Time
+
+				frame.AppendRow(timestamp, annotation.Text, annotation.Tags)
+			}
+
+			response.Responses[q.RefID] = backend.DataResponse{
+				Frames: []*data.Frame{frame},
+			}
+		}
+	}
+	return response, nil
+}
 
 // CheckHealth checks the plugin configuration.
 func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {

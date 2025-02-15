@@ -158,6 +158,72 @@ func (a *Api) GetDevices() (*PrtgDevicesListResponse, error) {
 	}
 
 	return &response, nil
+
+}
+
+// GetMessages retrieves messages for a given sensor for annotation queries.
+func (a *Api) GetAnnotations(startDate, endDate int64, sensorID string) ([]Annotation, error) {
+
+	sdate, edate, avg, err := processTimeRange(startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+backend.Logger.Info("Time range processed", "startDate", sdate, "endDate", edate, "avg", avg)
+
+	params := map[string]string{
+		"content": "messages",
+		"columns": "objid,datetime,parent,type,name,status,message",
+		"id":      sensorID,
+		"sdate":   sdate,
+		"edate":   edate,
+	}
+
+	body, err := a.baseExecuteRequest("table.json", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch messages: %w", err)
+	}
+
+	var response struct {
+		Messages []struct {
+			Datetime    float64 `json:"datetime_raw"`
+			Status      string  `json:"status"`
+			Parent      string  `json:"parent"`
+			Type        string  `json:"type"`
+			Message     string  `json:"message"`
+		} `json:"messages"`
+	}
+
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse messages response: %w", err)
+	}
+
+	var events []Annotation
+	for _, msg := range response.Messages {
+		// Convert Excel timestamp to Unix timestamp
+		timeUnix := int64((msg.Datetime - 25569) * 86400)
+
+		if timeUnix > startDate && timeUnix < endDate {
+			text := fmt.Sprintf("<p>%s(%s) Message:<br>%s</p>",
+				msg.Parent,
+				msg.Type,
+				msg.Message)
+
+			events = append(events, Annotation{
+				Time: time.Unix(timeUnix, 0),
+				Text: text,
+				Tags: []string{msg.Status},
+			})
+		}
+	}
+
+	return events, nil
+}
+
+// Annotation struct for storing annotation event data
+type Annotation struct {
+	Time time.Time
+	Text string
+	Tags []string
 }
 
 // GetSensors ruft die Sensoren-Liste ab.
@@ -209,6 +275,32 @@ func (a *Api) GetChannels(objid string) (*PrtgChannelValueStruct, error) {
 	}
 
 	return &response, nil
+
+}
+
+// processTimeRange formats dates with optional time component
+func processTimeRange(startDate, endDate int64) (string, string, float64, error) {
+	startTime := time.UnixMilli(startDate)
+	endTime := time.UnixMilli(endDate)
+
+	// Use only date if time is midnight (00:00:00)
+	formatDate := func(t time.Time) string {
+		if t.Hour() == 0 && t.Minute() == 0 && t.Second() == 0 {
+			return t.Format("2006-01-02")
+		}
+		return t.Format("2006-01-02-15-04-05")
+	}
+
+	sdate := formatDate(startTime)
+	edate := formatDate(endTime)
+
+	hours := endTime.Sub(startTime).Hours()
+	if hours <= 0 {
+		backend.Logger.Error("Invalid time range", "startDate", sdate, "endDate", edate)
+		return "", "", 0, fmt.Errorf("invalid time range: start date %v must be before end date %v", startTime, endTime)
+	}
+
+	return sdate, edate, hours, nil
 }
 
 // GetHistoricalData ruft historische Daten für den angegebenen Sensor und Zeitraum ab.
@@ -219,17 +311,9 @@ func (a *Api) GetHistoricalData(sensorID string, startDate, endDate int64) (*Prt
 		return nil, fmt.Errorf("invalid query: missing sensor ID")
 	}
 
-	startTime := time.UnixMilli(startDate)
-	endTime := time.UnixMilli(endDate)
-
-	const format = "2006-01-02-15-04-05"
-	sdate := startTime.Format(format)
-	edate := endTime.Format(format)
-
-	hours := endTime.Sub(startTime).Hours()
-	if hours <= 0 {
-		backend.Logger.Error("Invalid time range", "startDate", sdate, "endDate", edate)
-		return nil, fmt.Errorf("invalid time range: start date %v must be before end date %v", startTime, endTime)
+	sdate, edate, hours, err := processTimeRange(startDate, endDate)
+	if err != nil {
+		return nil, err
 	}
 
 	var avg string

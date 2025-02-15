@@ -5,6 +5,7 @@
   "id": "maxmarkusprogram-prtg-datasource",
   "metrics": true,
   "backend": true,
+  "annotations": true,
   "executable": "gpx_prtg",
   "info": {
     "description": "",
