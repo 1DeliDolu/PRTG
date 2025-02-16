@@ -5,6 +5,7 @@ services:
 
     build:
       context: .
+      dockerfile: Dockerfile
       args:
         grafana_image: ${GRAFANA_IMAGE:-grafana-enterprise}
         grafana_version: ${GRAFANA_VERSION:-11.5.1}
