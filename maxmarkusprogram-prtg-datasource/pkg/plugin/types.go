@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"encoding/json"
+	"time"
 )
 
 // PrtgTableListResponse represents the response from PRTG Table List API.
@@ -199,9 +200,9 @@ type PrtgStatusListResponse struct {
 
 // PrtgChannelsListResponse represents the response for channel values.
 type PrtgChannelsListResponse struct {
-    PrtgVersion string                   `json:"prtg-version" xml:"prtg-version"`
-    TreeSize    int64                    `json:"treesize" xml:"treesize"`
-    Values      []PrtgChannelValueStruct `json:"-" xml:"-"`
+	PrtgVersion string                   `json:"prtg-version" xml:"prtg-version"`
+	TreeSize    int64                    `json:"treesize" xml:"treesize"`
+	Values      []PrtgChannelValueStruct `json:"-" xml:"-"`
 }
 
 // PrtgChannelValueStruct is used as a dynamic map for storing channel data.
@@ -210,22 +211,22 @@ type PrtgChannelValueStruct map[string]interface{}
 // UnmarshalJSON implements a custom unmarshal method,
 // which handles the "datetime" value separately and packs the rest into the Value field.
 func (p *PrtgChannelValueStruct) UnmarshalJSON(data []byte) error {
-    var raw map[string]interface{}
-    if err := json.Unmarshal(data, &raw); err != nil {
-        return err
-    }
-    
-    // Create a new map if p is nil
-    if *p == nil {
-        *p = make(PrtgChannelValueStruct)
-    }
-    
-    // Copy all values to the map
-    for k, v := range raw {
-        (*p)[k] = v
-    }
-    
-    return nil
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	// Create a new map if p is nil
+	if *p == nil {
+		*p = make(PrtgChannelValueStruct)
+	}
+
+	// Copy all values to the map
+	for k, v := range raw {
+		(*p)[k] = v
+	}
+
+	return nil
 }
 
 //############################# CHANNEL VALUE RESPONSE ####################################
@@ -256,6 +257,35 @@ func (p *PrtgValues) UnmarshalJSON(data []byte) error {
 	delete(raw, "datetime")
 	p.Value = raw
 	return nil
+
+}
+
+/* #################################  MESSAGE RESPONSE #################################### */
+
+// PrtgMessageResponse contains the response for messages.
+type PrtgMessageResponse struct {
+	PrtgVersion string                      `json:"prtg-version" xml:"prtg-version"`
+	TreeSize    int64                       `json:"treesize" xml:"treesize"`
+	Messages    []PrtgMessageListItemStruct `json:"messages" xml:"messages"`
+}
+
+// PrtgMessageListItemStruct contains details for a single message.
+type PrtgMessageListItemStruct struct {
+	ObjectId    int64   `json:"objid"`
+	Datetime    string  `json:"datetime"`
+	DatetimeRAW float64 `json:"datetime_raw"`
+	Parent      string  `json:"parent"`
+	Type        string  `json:"type"`
+	Name        string  `json:"name"`
+	Status      string  `json:"status"`
+	Message     string  `json:"message"`
+}
+
+// Annotation represents a single annotation event
+type Annotation struct {
+	Time time.Time
+	Text string
+	Tags []string
 }
 
 /* ##################################### QUERY MODEL #################################### */

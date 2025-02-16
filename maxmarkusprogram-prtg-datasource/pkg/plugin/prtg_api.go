@@ -161,18 +161,17 @@ func (a *Api) GetDevices() (*PrtgDevicesListResponse, error) {
 
 }
 
-// GetMessages retrieves messages for a given sensor for annotation queries.
+// GetAnnotations retrieves messages for a given sensor for annotation queries.
 func (a *Api) GetAnnotations(startDate, endDate int64, sensorID string) ([]Annotation, error) {
-
 	sdate, edate, avg, err := processTimeRange(startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
-backend.Logger.Info("Time range processed", "startDate", sdate, "endDate", edate, "avg", avg)
+	backend.Logger.Info("Time range processed", "startDate", sdate, "endDate", edate, "avg", avg)
 
 	params := map[string]string{
 		"content": "messages",
-		"columns": "objid,datetime,parent,type,name,status,message",
+		"columns": "objid,datetime,parent,type,name,status,message,datetime_raw",
 		"id":      sensorID,
 		"sdate":   sdate,
 		"edate":   edate,
@@ -183,33 +182,26 @@ backend.Logger.Info("Time range processed", "startDate", sdate, "endDate", edate
 		return nil, fmt.Errorf("failed to fetch messages: %w", err)
 	}
 
-	var response struct {
-		Messages []struct {
-			Datetime    float64 `json:"datetime_raw"`
-			Status      string  `json:"status"`
-			Parent      string  `json:"parent"`
-			Type        string  `json:"type"`
-			Message     string  `json:"message"`
-		} `json:"messages"`
-	}
-
+	// Parse JSON response
+	var response PrtgMessageResponse
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse messages response: %w", err)
 	}
 
 	var events []Annotation
 	for _, msg := range response.Messages {
-		// Convert Excel timestamp to Unix timestamp
-		timeUnix := int64((msg.Datetime - 25569) * 86400)
+		// Convert Excel timestamp to Unix timestamp (milliseconds)
+		timeUnix := int64((msg.DatetimeRAW - 25569) * 86400 * 1000) // Convert to milliseconds
 
-		if timeUnix > startDate && timeUnix < endDate {
+		// Ensure timestamp is within the given range
+		if timeUnix >= startDate && timeUnix <= endDate {
 			text := fmt.Sprintf("<p>%s(%s) Message:<br>%s</p>",
 				msg.Parent,
 				msg.Type,
 				msg.Message)
 
 			events = append(events, Annotation{
-				Time: time.Unix(timeUnix, 0),
+				Time: time.UnixMilli(timeUnix), // Correct timestamp conversion
 				Text: text,
 				Tags: []string{msg.Status},
 			})
@@ -217,13 +209,6 @@ backend.Logger.Info("Time range processed", "startDate", sdate, "endDate", edate
 	}
 
 	return events, nil
-}
-
-// Annotation struct for storing annotation event data
-type Annotation struct {
-	Time time.Time
-	Text string
-	Tags []string
 }
 
 // GetSensors ruft die Sensoren-Liste ab.
@@ -318,23 +303,23 @@ func (a *Api) GetHistoricalData(sensorID string, startDate, endDate int64) (*Prt
 
 	var avg string
 	switch {
-	case hours <= 24:
+	case hours <= 40: // Up to 40 hours: Raw data (all monitoring requests)
 		avg = "0"
-	case hours <= 48:
-		avg = "60"
-	case hours <= 72:
+	case hours <= 168: // 1 to 7 days: 5-minute averages (300 seconds)
 		avg = "300"
-	case hours <= 168:
+	case hours <= 336: // 7 to 14 days: 15-minute averages (900 seconds)
 		avg = "900"
-	case hours <= 336:
+	case hours <= 720: // 14 to 30 days: 30-minute averages (1800 seconds)
 		avg = "1800"
-	case hours <= 720:
+	case hours <= 1440: // 30 to 60 days: 1-hour averages (3600 seconds)
 		avg = "3600"
-	case hours <= 1440:
+	case hours <= 2160: // 60 to 90 days: 2-hour averages (7200 seconds)
 		avg = "7200"
-	case hours <= 2160:
+	case hours <= 4320: // 90 to 180 days: 4-hour averages (14400 seconds)
 		avg = "14400"
-	default:
+	case hours <= 8760: // 180 to 365 days: 1-day averages (86400 seconds)
+		avg = "86400"
+	default: // More than 1 year: Maximum supported 1-day averages (86400 seconds)
 		avg = "86400"
 	}
 
@@ -380,12 +365,13 @@ func (a *Api) GetHistoricalData(sensorID string, startDate, endDate int64) (*Prt
 
 	return &response, nil
 	// 14.02.2025 13:49:00
+
 }
 
-// Yardımcı fonksiyon: string'i int'e çevirir, hata durumunda varsayılan değeri döner
+// Helper function: converts string to int, returns default value on error
 func mustParseInt(s string, defaultVal int64) int64 {
 	if s == "0" {
-		return 60 // Ham veri için 1 dakikalık aralık varsayıyoruz
+		return 60 // Assuming 1-minute interval for raw data
 	}
 	val, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {

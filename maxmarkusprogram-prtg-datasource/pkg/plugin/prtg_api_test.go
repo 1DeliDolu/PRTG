@@ -2,15 +2,15 @@ package plugin
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 )
 
-// ✅ Mock HTTP Server ile API testlerini çalıştırıyoruz
+// ✅ Running API tests with Mock HTTP Server
 func setupMockServer(responseBody string, statusCode int) (*httptest.Server, *Api) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
@@ -24,7 +24,7 @@ func setupMockServer(responseBody string, statusCode int) (*httptest.Server, *Ap
 	return server, api
 }
 
-// ✅ API URL'sinin doğru oluşturulduğunu test eder
+// ✅ Tests if the API URL is built correctly
 func TestBuildApiUrl(t *testing.T) {
 	api := NewApi("http://localhost", "test-api-key", 10*time.Second, 10*time.Second)
 
@@ -43,7 +43,7 @@ func TestBuildApiUrl(t *testing.T) {
 	}
 }
 
-// ✅ StatusList API test
+// ✅ Tests for API response handling
 func TestGetStatusList(t *testing.T) {
 	server, api := setupMockServer(`{"prtgversion": "21.2.68.1492"}`, http.StatusOK)
 	defer server.Close()
@@ -55,9 +55,10 @@ func TestGetStatusList(t *testing.T) {
 	if status.PrtgVersion != "21.2.68.1492" {
 		t.Errorf("Expected status '21.2.68.1492', got: %v", status.PrtgVersion)
 	}
+
 }
 
-// ✅ Grupları çekme testi
+// ✅ Test fetching groups
 func TestGetGroups(t *testing.T) {
 	mockResponse := `{"groups": [{"group": "Network Devices"}]}`
 	server, api := setupMockServer(mockResponse, http.StatusOK)
@@ -72,7 +73,7 @@ func TestGetGroups(t *testing.T) {
 	}
 }
 
-// ✅ Cihazları çekme testi
+// ✅ Test fetching devices
 func TestGetDevices(t *testing.T) {
 	mockResponse := `{"devices": [{"device": "Router"}]}`
 	server, api := setupMockServer(mockResponse, http.StatusOK)
@@ -85,9 +86,10 @@ func TestGetDevices(t *testing.T) {
 	if len(devices.Devices) == 0 {
 		t.Errorf("Expected at least 1 device, got 0")
 	}
+
 }
 
-// ✅ Sensörleri çekme testi
+// ✅ Test fetching sensors
 func TestGetSensors(t *testing.T) {
 	mockResponse := `{"sensors": [{"sensor": "CPU Load"}]}`
 	server, api := setupMockServer(mockResponse, http.StatusOK)
@@ -101,7 +103,6 @@ func TestGetSensors(t *testing.T) {
 		t.Errorf("Expected at least 1 sensor, got 0")
 	}
 }
-
 
 // ✅ Tarihsel veri çekme testi
 func TestGetHistoricalData(t *testing.T) {
@@ -151,7 +152,7 @@ func TestApiErrorHandling(t *testing.T) {
 
 // ✅ Yardımcı Fonksiyon: JSON Fixture Yükleme
 func loadFixture(filePath string) string {
-	data, err := ioutil.ReadFile("testdata" + filePath)
+	data, err := os.ReadFile("testdata" + filePath)
 	if err != nil {
 		return `{"error": "Could not load fixture"}`
 	}
