@@ -60,7 +60,7 @@ export function ConfigEditor(props: Props) {
           id="config-editor-path"
           onChange={onPathChange}
           value={jsonData.path}
-          placeholder="Enter the path, e.g. /api/v1"
+          placeholder="Enter the path, e.g. https://prtg.example"
           width={60}
         />
       </InlineField>
