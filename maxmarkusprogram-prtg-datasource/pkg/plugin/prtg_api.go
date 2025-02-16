@@ -15,13 +15,6 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 )
 
-// Api holds API-related configurations.
-type Api struct {
-	baseURL string
-	apiKey  string
-	timeout time.Duration
-}
-
 // NewApi creates a new Api instance.
 // requestTimeout is used as timeout for API requests.
 func NewApi(baseURL, apiKey string, cacheTime, requestTimeout time.Duration) *Api {

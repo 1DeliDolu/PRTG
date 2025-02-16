@@ -333,3 +333,9 @@ type queryModel struct {
 type MyDatasource struct{}
 
 // 14.02.2025 13:49:00
+// Api holds API-related configurations.
+type Api struct {
+	baseURL string
+	apiKey  string
+	timeout time.Duration
+}
