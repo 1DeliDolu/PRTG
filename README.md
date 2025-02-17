@@ -65,75 +65,109 @@ Feel free to contribute to this project by submitting issues or pull requests.
 
 You can now save this content in the README.md file in your repository.
 
-
 ## Config Editor
 
 1. Open in browser `http://grafana.prtg:3000/connections/datasources`
 
-
 ![1739793462631](image/README/1739793462631.png)
 
-## * Press PRTG
+2. Press PRTG
 
   ![1739793798353](image/README/1739793798353.png)
 
-## * Enter your prtg server ![1739793866048](image/README/1739793866048.png)
+3. Enter your prtg server 
 
-## * Enter your api-token and Press save & test
+![1739793866048](image/README/1739793866048.png)
+
+4. Enter your api-token and Press save & test
 
   ![1739793921893](image/README/1739793921893.png)
 
-1. Press [Press build a dashboard]()
-   ![1739794001603](image/README/1739794001603.png)
-1. Press Add visualizaton[
-   ]()
-   ![1739794068185](image/README/1739794068185.png)
-1. Press PRTG
-   ![1739794166798](image/README/1739794166798.png)
-1. Select Query Type
-   ![1739795234405](image/README/1739795234405.png)
-1. Select Group
-   ![1739795274666](image/README/1739795274666.png)
-1. Select Device
-   ![1739795311709](image/README/1739795311709.png)
-1. Select Sensor
-   ![1739795351207](image/README/1739795351207.png)
-1. Select Channel
-   ![1739795402834](image/README/1739795402834.png)
-1. Look at Panel
-   ![1739795452206](image/README/1739795452206.png)## Options
-1. Add Group name in panel
-   ![1739795578616](image/README/1739795578616.png)
-1. Add Device and Sensor
-   ![1739795687023](image/README/1739795687023.png)
-1. Add new query
-   ![1739795739188](image/README/1739795739188.png)
-1. Select Query, Group, Device, Sensor and Channel
-   ![1739795941422](image/README/1739795941422.png)
-1. An another example
-   ![1739796156994](image/README/1739796156994.png)
-1. Fill Opacity
-   ![1739796291106](image/README/1739796291106.png)
-1. Select Stat
-   ![1739796324396](image/README/1739796324396.png)Raw Metric
+5.Press Build an Dashboard
 
-## * Select Query Raw, Group, Device, Sensor,  Property and Filter Property
+
+![1739794001603](image/README/1739794001603.png)
+
+6.Press Add visualizaton[
+]()
+![1739794068185](image/README/1739794068185.png)
+
+7.Press PRTG
+
+
+![1739794166798](image/README/1739794166798.png)
+
+8.Select Query Type
+
+
+![1739795234405](image/README/1739795234405.png)
+
+9.Select Group
+
+
+![1739795274666](image/README/1739795274666.png)
+
+10.Select Device
+
+
+![1739795311709](image/README/1739795311709.png)
+
+11.Select Sensor
+
+
+![1739795351207](image/README/1739795351207.png)
+
+12.Select Channel
+
+
+![1739795402834](image/README/1739795402834.png)
+
+13.Look at Panel
+
+![1739795452206](image/README/1739795452206.png)
+
+
+
+## Options
+
+14.Add Group name in panel
+![1739795578616](image/README/1739795578616.png)
+
+15.Add Device and Sensor
+![1739795687023](image/README/1739795687023.png)
+
+16.Add new query
+![1739795739188](image/README/1739795739188.png)
+
+17.Select Query, Group, Device, Sensor and Channel
+![1739795941422](image/README/1739795941422.png)
+
+18.An another example
+![1739796156994](image/README/1739796156994.png)
+
+19.Fill Opacity
+![1739796291106](image/README/1739796291106.png)
+
+20.Select Stat
+![1739796324396](image/README/1739796324396.png)
+
+
+
+## Raw Metric
+
+1.Select Query Raw, Group, Device, Sensor,  Property and Filter Property
 
   ![1739796514348](image/README/1739796514348.png)
 
-## * Examples
+2. Examples
 
   ![1739796591456](image/README/1739796591456.png)
 
 ## Text
 
-1. Query Text
-   ![1739796808632](image/README/1739796808632.png)
-   ![1739796830021](image/README/1739796830021.png)
-
-
-
-
+1.Query Text
+![1739796808632](image/README/1739796808632.png)
+![1739796830021](image/README/1739796830021.png)
 
 ## Panel
 
