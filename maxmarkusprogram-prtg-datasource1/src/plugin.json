@@ -1,0 +1,56 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "datasource",
+  "name": "PRTG",
+  "id": "maxmarkusprogram-prtg-datasource",
+  "metrics": true,
+  "backend": true,
+  "annotations": true,
+  "executable": "gpx_prtg",
+  "info": {
+    "description": "Grafana datasource plugin whit backend for PRTG",
+    "author": {
+      "name": "Mustafa Özdemir",
+      "mail": "mustafa.ozdemir1408@gmail.com"
+    },
+    "keywords": [
+      "datasource","PRTG","grafana"
+    ],
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
+    },
+    "links": [
+      {
+        "name": "GitHub",
+        "url": "https://github.com/1DeliDolu/PRTG.git"
+      }
+    ],
+    "screenshots": [],
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
+  },
+  "routes": [
+    {
+      "path": "{{.JsonData.url}}",
+      "method": "GET",
+      "urlParams": [
+        {
+          "name": "apitoken",
+          "content": "{{.SecureJsonData.apiKey}}"
+        }
+      ]
+    }
+  ],
+  "includes": [
+    {
+      "name": "overview",
+      "path": "dashboards/overview.json",
+      "type": "dashboard"
+    }
+  ],
+  "dependencies": {
+    "grafanaDependency": ">=10.4.0",
+    "plugins": []
+  }
+}
