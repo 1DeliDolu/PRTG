@@ -10,7 +10,10 @@ on:
       - master
       - main
 
-permissions: read-all
+permissions:
+  id-token: write
+  contents: write
+  attestations: write
 
 jobs:
   build:

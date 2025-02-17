@@ -7,7 +7,10 @@ on:
     tags:
       - 'v*' # Run workflow on version tags, e.g. v1.0.0.
 
-permissions: read-all
+permissions:
+  id-token: write
+  contents: write
+  attestations: write
 
 jobs:
   release:
@@ -19,6 +22,7 @@ jobs:
       - uses: grafana/plugin-actions/build-plugin@main
         with:
           grafana_token: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
+          attestation:
         # Uncomment to enable plugin signing
         # (For more info on how to generate the access policy token see https://grafana.com/developers/plugin-tools/publish-a-plugin/sign-a-plugin#generate-an-access-policy-token)
         #with:
