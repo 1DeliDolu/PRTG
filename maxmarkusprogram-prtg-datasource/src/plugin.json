@@ -8,18 +8,24 @@
   "annotations": true,
   "executable": "gpx_prtg",
   "info": {
-    "description": "",
+    "description": "Grafana datasource plugin whit backend for PRTG",
     "author": {
-      "name": "Maxmarkusprogram"
+      "name": "Mustafa Özdemir",
+      "mail": "mustafa.ozdemir1408@gmail.com"
     },
     "keywords": [
-      "datasource"
+      "datasource","PRTG","grafana"
     ],
     "logos": {
       "small": "img/logo.svg",
       "large": "img/logo.svg"
     },
-    "links": [],
+    "links": [
+      {
+        "name": "GitHub",
+        "url": "https://github.com/1DeliDolu/PRTG.git"
+      }
+    ],
     "screenshots": [],
     "version": "%VERSION%",
     "updated": "%TODAY%"
