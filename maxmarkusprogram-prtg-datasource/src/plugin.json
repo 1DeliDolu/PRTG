@@ -11,7 +11,7 @@
     "description": "Grafana datasource plugin whit backend for PRTG",
     "author": {
       "name": "Mustafa Özdemir",
-      "mail": "mustafa.ozdemir1408@gmail.com"
+      "email": "mustafa.ozdemir1408@gmail.com"
     },
     "keywords": [
       "datasource","PRTG","grafana"
@@ -26,7 +26,11 @@
         "url": "https://github.com/1DeliDolu/PRTG.git"
       }
     ],
-    "screenshots": [],
+    "screenshots": [
+      {
+        "path": "img/1739797413883.png"
+      }
+    ],
     "version": "%VERSION%",
     "updated": "%TODAY%"
   },

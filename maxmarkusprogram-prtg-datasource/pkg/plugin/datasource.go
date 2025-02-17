@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/1DeliDolu/PRTG/maxmarkusprogram/prtg/pkg/models"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
-	"github.com/1DeliDolu/PRTG/maxmarkusprogram/prtg/pkg/models"
 )
 
 // Aşağıdaki satırlarla Datasource, gerekli Grafana SDK arayüzlerini implemente ettiğinden emin oluyoruz.
