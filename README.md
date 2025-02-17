@@ -67,7 +67,7 @@ You can now save this content in the README.md file in your repository.
 
 ## Config Editor
 
-1. Open in browser `http://grafana.prtg:3000/connections/datasources`
+1. Open `http://localhost:3000/` in browser or  `http://grafana.prtg:3000/connections/datasources`
 
 ![1739793462631](image/README/1739793462631.png)
 
@@ -75,7 +75,7 @@ You can now save this content in the README.md file in your repository.
 
   ![1739793798353](image/README/1739793798353.png)
 
-3. Enter your prtg server 
+3. Enter your prtg server
 
 ![1739793866048](image/README/1739793866048.png)
 
@@ -85,7 +85,6 @@ You can now save this content in the README.md file in your repository.
 
 5.Press Build an Dashboard
 
-
 ![1739794001603](image/README/1739794001603.png)
 
 6.Press Add visualizaton[
@@ -94,39 +93,31 @@ You can now save this content in the README.md file in your repository.
 
 7.Press PRTG
 
-
 ![1739794166798](image/README/1739794166798.png)
 
 8.Select Query Type
-
 
 ![1739795234405](image/README/1739795234405.png)
 
 9.Select Group
 
-
 ![1739795274666](image/README/1739795274666.png)
 
 10.Select Device
-
 
 ![1739795311709](image/README/1739795311709.png)
 
 11.Select Sensor
 
-
 ![1739795351207](image/README/1739795351207.png)
 
 12.Select Channel
-
 
 ![1739795402834](image/README/1739795402834.png)
 
 13.Look at Panel
 
 ![1739795452206](image/README/1739795452206.png)
-
-
 
 ## Options
 
@@ -150,8 +141,6 @@ You can now save this content in the README.md file in your repository.
 
 20.Select Stat
 ![1739796324396](image/README/1739796324396.png)
-
-
 
 ## Raw Metric
 
