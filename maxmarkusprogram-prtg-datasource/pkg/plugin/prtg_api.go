@@ -7,11 +7,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"sync"
 	"time"
 
-	"github.com/grafana/grafana-plugin-sdk-go/backend"
+
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 )
 
@@ -227,9 +226,7 @@ func (a *Api) GetChannels(objid string) (*PrtgChannelValueStruct, error) {
 		return nil, err
 	}
 
-	if err := os.WriteFile("channel_response.txt", body, 0644); err != nil {
-		backend.Logger.Warn("Could not save channel response to file", "error", err)
-	}
+
 
 	var response PrtgChannelValueStruct
 	if err := json.Unmarshal(body, &response); err != nil {

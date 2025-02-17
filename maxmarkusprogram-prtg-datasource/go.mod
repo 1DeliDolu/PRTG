@@ -1,4 +1,4 @@
-module github.com/maxmarkusprogram/prtg
+module  github.com/1DeliDolu/PRTG/maxmarkusprogram/prtg
 
 go 1.22.7
 
