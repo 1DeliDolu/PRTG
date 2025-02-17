@@ -14,7 +14,7 @@ This Grafana datasource plugin integrates with PRTG, enabling users to fetch and
    ```
 2. Navigate to the plugin directory:
    ```sh
-   cd PRTG
+   cd PRTG/maxmarkusprogram-prtg-datasource
    ```
 3. Install dependencies:
    ```sh
