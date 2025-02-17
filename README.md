@@ -26,7 +26,7 @@ This Grafana datasource plugin integrates with PRTG, enabling users to fetch and
    ```
 5. Copy the plugin to Grafana's plugin directory:
    ```sh
-   cp -r dist /var/lib/grafana/plugins/maxmarkusprogram-prtg-datasource
+   cp -r dist /var/lib/grafana/plugins/PRTG
    ```
 6. Restart Grafana:
    ```sh
