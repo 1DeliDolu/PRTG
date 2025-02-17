@@ -75,5 +75,3 @@ RUN sed -i 's|</body>|<script src="http://localhost:35729/livereload.js"></scrip
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
-
-

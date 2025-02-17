@@ -4,7 +4,6 @@ import { QueryEditorProps, SelectableValue } from '@grafana/data'
 import { DataSource } from '../datasource'
 import { MyDataSourceOptions, MyQuery, queryTypeOptions, QueryType, propertyList, filterPropertyList } from '../types'
 
-
 type Props = QueryEditorProps<DataSource, MyQuery, MyDataSourceOptions>
 
 export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) {
@@ -469,4 +468,3 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
 
   )
 }
-

@@ -32,11 +32,6 @@ func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, quer
 	var response backend.DataResponse
 	var qm queryModel
 
-
-
-	backend.Logger.Debug("Raw query parameters",
-		"timeRange", fmt.Sprintf("%v to %v", query.TimeRange.From, query.TimeRange.To),
-		"rawJSON", string(query.JSON))
 	if err := json.Unmarshal(query.JSON, &qm); err != nil {
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("JSON unmarshal error: %v", err))
 	}
@@ -47,23 +42,15 @@ func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, quer
 		fromTime := query.TimeRange.From.UnixMilli()
 		toTime := query.TimeRange.To.UnixMilli()
 
-		backend.Logger.Info("Fetching historical data",
-			"objectId", qm.ObjectId,
-			"channel", qm.Channel,
-			"from", fromTime,
-			"to", toTime)
 		historicalData, err := d.api.GetHistoricalData(qm.ObjectId, fromTime, toTime)
 		if err != nil {
 			backend.Logger.Error("API request failed", "error", err)
 			return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("API request failed: %v", err))
 		}
-		backend.Logger.Info("Received historical data", "dataPoints", len(historicalData.HistData))
 
 		// Assumption: historicalData.Treesize contains the value from the JSON ("treesize")
 		times := make([]time.Time, 0)
 		values := make([]float64, 0)
-
-		backend.Logger.Debug("Parsing historical data", "channel", len(times))
 
 		for _, item := range historicalData.HistData {
 			parsedTime, _, err := parsePRTGDateTime(item.Datetime)
@@ -188,7 +175,6 @@ func (d *Datasource) handlePropertyQuery(qm queryModel, filterProperty string) b
 				if value != nil {
 					times = append(times, timestamp)
 					values = append(values, value)
-					backend.Logger.Debug("Adding value", "timestamp", timestamp, "value", value)
 				}
 			}
 		}
@@ -233,7 +219,6 @@ func (d *Datasource) handlePropertyQuery(qm queryModel, filterProperty string) b
 				if value != nil {
 					times = append(times, timestamp)
 					values = append(values, value)
-					backend.Logger.Debug("Adding value", "timestamp", timestamp, "value", value)
 				}
 			}
 		}
@@ -243,12 +228,6 @@ func (d *Datasource) handlePropertyQuery(qm queryModel, filterProperty string) b
 		if err != nil {
 			return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("API request failed: %v", err))
 		}
-
-		backend.Logger.Debug("Processing sensors response",
-			"sensorCount", len(sensors.Sensors),
-			"lookingFor", qm.Sensor,
-			"filterProperty", filterProperty)
-
 		for _, s := range sensors.Sensors {
 			if s.Sensor == qm.Sensor {
 				timestamp, _, err := parsePRTGDateTime(s.Datetime)
@@ -298,11 +277,6 @@ func (d *Datasource) handlePropertyQuery(qm queryModel, filterProperty string) b
 				if value != nil {
 					times = append(times, timestamp)
 					values = append(values, value)
-					backend.Logger.Debug("Adding data point",
-						"timestamp", timestamp,
-						"value", value,
-						"filterProperty", filterProperty,
-						"sensor", qm.Sensor)
 				}
 			}
 		}
@@ -357,10 +331,6 @@ func (d *Datasource) handlePropertyQuery(qm queryModel, filterProperty string) b
 		)
 
 		response.Frames = append(response.Frames, frame)
-		backend.Logger.Debug("Created frame",
-			"frameLength", len(response.Frames),
-			"timePoints", len(times),
-			"valuePoints", len(values))
 	}
 
 	return response

@@ -11,11 +11,10 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
-	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/maxmarkusprogram/prtg/pkg/models"
 )
 
-// Ensure Datasource implements required Grafana SDK interfaces
+// Aşağıdaki satırlarla Datasource, gerekli Grafana SDK arayüzlerini implemente ettiğinden emin oluyoruz.
 var (
 	_ backend.QueryDataHandler      = (*Datasource)(nil)
 	_ backend.CheckHealthHandler    = (*Datasource)(nil)
@@ -23,16 +22,15 @@ var (
 	_ backend.CallResourceHandler   = (*Datasource)(nil)
 )
 
-// NewDatasource creates a new datasource instance by extracting data from plugin settings.
+// NewDatasource, plugin ayarlarından verileri çekerek yeni bir datasource örneği oluşturur.
 func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
 	config, err := models.LoadPluginSettings(settings)
 	if err != nil {
 		return nil, err
 	}
 	baseURL := fmt.Sprintf("https://%s", config.Path)
-	backend.Logger.Info("Base URL", "url", baseURL)
 
-	// If cache time is not defined, default to 30 seconds
+	// Eğer cache zamanı tanımlı değilse varsayılan 30 saniye kullanılır.
 	cacheTime := config.CacheTime
 	if cacheTime <= 0 {
 		cacheTime = 30 * time.Second
@@ -44,15 +42,16 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 	}, nil
 }
 
-// Dispose is called when the datasource settings are changed.
+// Dispose, datasource ayarları değiştiğinde çağrılır.
 func (d *Datasource) Dispose() {
+	// Gerekirse kaynak temizleme işlemleri yapılabilir.
 }
 
-// QueryData processes incoming queries and returns the results.
+// QueryData, gelen sorguları işler ve sonuçları döner.
 func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
 	response := backend.NewQueryDataResponse()
 
-	// Call the query method for each query.
+	// Her sorgu için query metodunu çağırıyoruz.
 	for _, q := range req.Queries {
 		res := d.query(ctx, req.PluginContext, q)
 		response.Responses[q.RefID] = res
@@ -61,13 +60,14 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 	return response, nil
 }
 
-// parsePRTGDateTime parses PRTG datetime strings in various formats.
+// parsePRTGDateTime parses PRTG datetime strings in various formats
 func parsePRTGDateTime(datetime string) (time.Time, string, error) {
 	// Try different known PRTG date formats
 	layouts := []string{
 		"02.01.2006 15:04:05",
 		time.RFC3339,
 	}
+
 	var parseErr error
 	for _, layout := range layouts {
 		parsedTime, err := time.Parse(layout, datetime)
@@ -77,55 +77,17 @@ func parsePRTGDateTime(datetime string) (time.Time, string, error) {
 		}
 		parseErr = err
 	}
+
 	backend.Logger.Error("Date parsing failed for all formats",
 		"datetime", datetime,
 		"error", parseErr)
 	return time.Time{}, "", fmt.Errorf("failed to parse time '%s': %w", datetime, parseErr)
 }
 
-// Annotations returns annotations for a time series.
-func (d *Datasource) AnnotationsQueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	response := backend.NewQueryDataResponse()
+// query, tek bir sorguyu işler. Eğer QueryType "metrics" ise zaman serisi oluşturur,
+// aksi halde property bazlı sorgular handlePropertyQuery ile işlenir.
 
-	for _, query := range req.Queries {
-		var qm queryModel
-		if err := json.Unmarshal(query.JSON, &qm); err != nil {
-			return nil, err
-		}
-		fromTime := query.TimeRange.From.UnixMilli()
-		toTime := query.TimeRange.To.UnixMilli()
-		for _, q := range req.Queries {
-			// Example: Fetch annotation events from PRTG API (Modify as per actual API)
-			annotations, err := d.api.GetAnnotations(fromTime, toTime, qm.ObjectId) // Replace with actual API call
-			if err != nil {
-				backend.Logger.Error("Failed to fetch annotations", "error", err)
-				response.Responses[q.RefID] = backend.DataResponse{
-					Error: err,
-				}
-				continue
-			}
-			// Convert API response to Grafana annotation format
-			frame := data.NewFrame("annotations",
-				data.NewField("time", nil, []time.Time{}),
-				data.NewField("text", nil, []string{}),
-				data.NewField("tags", nil, [][]string{}),
-			)
-
-			for _, annotation := range annotations {
-				timestamp := annotation.Time
-
-				frame.AppendRow(timestamp, annotation.Text, annotation.Tags)
-			}
-
-			response.Responses[q.RefID] = backend.DataResponse{
-				Frames: []*data.Frame{frame},
-			}
-		}
-	}
-	return response, nil
-}
-
-// CheckHealth checks the plugin configuration.
+// CheckHealth, plugin konfigürasyonunu kontrol eder.
 func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
 	res := &backend.CheckHealthResult{}
 
@@ -158,7 +120,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 	return res, nil
 }
 
-// CallResource routes requests to the appropriate handlers based on the URL path.
+// CallResource, URL path'ine göre istekleri ilgili handler'lara yönlendirir.
 func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResourceRequest, sender backend.CallResourceResponseSender) error {
 	pathParts := strings.Split(req.Path, "/")
 	switch pathParts[0] {
@@ -285,4 +247,5 @@ func (d *Datasource) handleGetChannel(sender backend.CallResourceResponseSender,
 		Headers: map[string][]string{"Content-Type": {"application/json"}},
 		Body:    body,
 	})
+	// 14.02.2025 13:49:00
 }

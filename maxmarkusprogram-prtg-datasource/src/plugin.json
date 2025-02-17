@@ -8,11 +8,11 @@
   "annotations": true,
   "executable": "gpx_prtg",
   "info": {
-    "description": "Grafana datasource for prtg",
+    "description": "",
     "author": {
       "name": "Maxmarkusprogram"
     },
-    "keywords": ["datasource;prtg"],
+    "keywords": ["datasource"],
     "logos": {
       "small": "img/logo.svg",
       "large": "img/logo.svg"

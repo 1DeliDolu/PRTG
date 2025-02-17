@@ -8,15 +8,21 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 )
 
-// NewApi creates a new Api instance.
-// requestTimeout is used as timeout for API requests.
+// Api hält API-bezogene Konfigurationen.
+type Api struct {
+	baseURL string
+	apiKey  string
+	timeout time.Duration
+}
+
+// NewApi erstellt eine neue Api-Instanz.
+// Hier wird requestTimeout als Timeout für API-Anfragen genutzt.
 func NewApi(baseURL, apiKey string, cacheTime, requestTimeout time.Duration) *Api {
 	return &Api{
 		baseURL: baseURL,
@@ -25,7 +31,7 @@ func NewApi(baseURL, apiKey string, cacheTime, requestTimeout time.Duration) *Ap
 	}
 }
 
-// buildApiUrl creates a standardized PRTG API URL with given parameters.
+// buildApiUrl erstellt eine standardisierte PRTG-API-URL mit übergebenen Parametern.
 func (a *Api) buildApiUrl(method string, params map[string]string) (string, error) {
 	baseUrl := fmt.Sprintf("%s/api/%s", a.baseURL, method)
 	u, err := url.Parse(baseUrl)
@@ -61,7 +67,7 @@ func (a *Api) baseExecuteRequest(endpoint string, params map[string]string) ([]b
 	client := &http.Client{
 		Timeout: a.timeout,
 		Transport: &http.Transport{
-			// Warning: InsecureSkipVerify should be reviewed in production environments!
+			// Achtung: InsecureSkipVerify sollte in Produktionsumgebungen überprüft werden!
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 	}
@@ -92,8 +98,6 @@ func (a *Api) baseExecuteRequest(endpoint string, params map[string]string) ([]b
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
-
-	backend.Logger.Debug("Raw response body", "body", string(body))
 	return body, nil
 }
 
@@ -151,57 +155,6 @@ func (a *Api) GetDevices() (*PrtgDevicesListResponse, error) {
 	}
 
 	return &response, nil
-
-}
-
-// GetAnnotations retrieves messages for a given sensor for annotation queries.
-func (a *Api) GetAnnotations(startDate, endDate int64, sensorID string) ([]Annotation, error) {
-	sdate, edate, avg, err := processTimeRange(startDate, endDate)
-	if err != nil {
-		return nil, err
-	}
-	backend.Logger.Info("Time range processed", "startDate", sdate, "endDate", edate, "avg", avg)
-
-	params := map[string]string{
-		"content": "messages",
-		"columns": "objid,datetime,parent,type,name,status,message,datetime_raw",
-		"id":      sensorID,
-		"sdate":   sdate,
-		"edate":   edate,
-	}
-
-	body, err := a.baseExecuteRequest("table.json", params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch messages: %w", err)
-	}
-
-	// Parse JSON response
-	var response PrtgMessageResponse
-	if err := json.Unmarshal(body, &response); err != nil {
-		return nil, fmt.Errorf("failed to parse messages response: %w", err)
-	}
-
-	var events []Annotation
-	for _, msg := range response.Messages {
-		// Convert Excel timestamp to Unix timestamp (milliseconds)
-		timeUnix := int64((msg.DatetimeRAW - 25569) * 86400 * 1000) // Convert to milliseconds
-
-		// Ensure timestamp is within the given range
-		if timeUnix >= startDate && timeUnix <= endDate {
-			text := fmt.Sprintf("<p>%s(%s) Message:<br>%s</p>",
-				msg.Parent,
-				msg.Type,
-				msg.Message)
-
-			events = append(events, Annotation{
-				Time: time.UnixMilli(timeUnix), // Correct timestamp conversion
-				Text: text,
-				Tags: []string{msg.Status},
-			})
-		}
-	}
-
-	return events, nil
 }
 
 // GetSensors ruft die Sensoren-Liste ab.
@@ -216,8 +169,6 @@ func (a *Api) GetSensors() (*PrtgSensorsListResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	backend.Logger.Debug("Sensor Response", "body", string(body))
 
 	var response PrtgSensorsListResponse
 	if err := json.Unmarshal(body, &response); err != nil {
@@ -242,7 +193,6 @@ func (a *Api) GetChannels(objid string) (*PrtgChannelValueStruct, error) {
 		return nil, err
 	}
 
-	// Optional: Rohantwort in eine Datei schreiben (für Debugging)
 	if err := os.WriteFile("channel_response.txt", body, 0644); err != nil {
 		backend.Logger.Warn("Could not save channel response to file", "error", err)
 	}
@@ -253,77 +203,54 @@ func (a *Api) GetChannels(objid string) (*PrtgChannelValueStruct, error) {
 	}
 
 	return &response, nil
-
-}
-
-// processTimeRange formats dates with optional time component
-func processTimeRange(startDate, endDate int64) (string, string, float64, error) {
-	startTime := time.UnixMilli(startDate)
-	endTime := time.UnixMilli(endDate)
-
-	// Use only date if time is midnight (00:00:00)
-	formatDate := func(t time.Time) string {
-		if t.Hour() == 0 && t.Minute() == 0 && t.Second() == 0 {
-			return t.Format("2006-01-02")
-		}
-		return t.Format("2006-01-02-15-04-05")
-	}
-
-	sdate := formatDate(startTime)
-	edate := formatDate(endTime)
-
-	hours := endTime.Sub(startTime).Hours()
-	if hours <= 0 {
-		backend.Logger.Error("Invalid time range", "startDate", sdate, "endDate", edate)
-		return "", "", 0, fmt.Errorf("invalid time range: start date %v must be before end date %v", startTime, endTime)
-	}
-
-	return sdate, edate, hours, nil
 }
 
 // GetHistoricalData ruft historische Daten für den angegebenen Sensor und Zeitraum ab.
 func (a *Api) GetHistoricalData(sensorID string, startDate, endDate int64) (*PrtgHistoricalDataResponse, error) {
-	backend.Logger.Info("GetHistoricalData called", "sensorID", sensorID, "startDate", startDate, "endDate", endDate)
 
+	// Input validation
 	if sensorID == "" {
 		return nil, fmt.Errorf("invalid query: missing sensor ID")
 	}
 
-	sdate, edate, hours, err := processTimeRange(startDate, endDate)
-	if err != nil {
-		return nil, err
+	// Convert timestamps to time.Time
+	startTime := time.UnixMilli(startDate)
+	endTime := time.UnixMilli(endDate)
+
+	// Format dates
+	const format = "2006-01-02-15-04-05"
+	sdate := startTime.Format(format)
+	edate := endTime.Format(format)
+
+	// Calculate hours and validate time range
+	hours := endTime.Sub(startTime).Hours()
+	if hours <= 0 {
+		return nil, fmt.Errorf("invalid time range: start date %v must be before end date %v", startTime, endTime)
 	}
 
+	// Determine averaging interval
 	var avg string
 	switch {
-	case hours <= 40: // Up to 40 hours: Raw data (all monitoring requests)
+	case hours <= 12:
 		avg = "0"
-	case hours <= 168: // 1 to 7 days: 5-minute averages (300 seconds)
+	case hours <= 36:
+		avg = "60"
+	case hours <= 72:
 		avg = "300"
-	case hours <= 336: // 7 to 14 days: 15-minute averages (900 seconds)
+	case hours <= 168:
 		avg = "900"
-	case hours <= 720: // 14 to 30 days: 30-minute averages (1800 seconds)
+	case hours <= 336:
 		avg = "1800"
-	case hours <= 1440: // 30 to 60 days: 1-hour averages (3600 seconds)
+	case hours <= 720:
 		avg = "3600"
-	case hours <= 2160: // 60 to 90 days: 2-hour averages (7200 seconds)
+	case hours <= 1440:
 		avg = "7200"
-	case hours <= 4320: // 90 to 180 days: 4-hour averages (14400 seconds)
+	case hours <= 2160:
 		avg = "14400"
-	case hours <= 8760: // 180 to 365 days: 1-day averages (86400 seconds)
-		avg = "86400"
-	default: // More than 1 year: Maximum supported 1-day averages (86400 seconds)
+	default:
 		avg = "86400"
 	}
-
-	backend.Logger.Info("Historical data parameters",
-		"sensorID", sensorID,
-		"startDate", sdate,
-		"endDate", edate,
-		"hours", hours,
-		"avg", avg,
-		"expectedDataPoints", hours*3600/float64(mustParseInt(avg, 1)))
-
+	// Set up API request parameters
 	params := map[string]string{
 		"id":         sensorID,
 		"columns":    "datetime,value_",
@@ -334,41 +261,22 @@ func (a *Api) GetHistoricalData(sensorID string, startDate, endDate int64) (*Prt
 		"usecaption": "1",
 	}
 
+	// Make API request
 	body, err := a.baseExecuteRequest("historicdata.json", params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch historical data: %w", err)
 	}
 
+	// Parse response
 	var response PrtgHistoricalDataResponse
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	backend.Logger.Info("Historical data response received successfully")
-
-	// Optional: Rohantwort in eine Datei schreiben (für Debugging)
-	if err := os.WriteFile("historical_data_response.txt", body, 0644); err != nil {
-		backend.Logger.Warn("Could not save historical data response to file", "error", err)
-	}
-
+	// Validate response
 	if len(response.HistData) == 0 {
 		return nil, fmt.Errorf("no data found for the given time range")
 	}
-	backend.Logger.Info("First datetime in response", "datetime", response.HistData[0].Datetime)
 
 	return &response, nil
-	// 14.02.2025 13:49:00
-
-}
-
-// Helper function: converts string to int, returns default value on error
-func mustParseInt(s string, defaultVal int64) int64 {
-	if s == "0" {
-		return 60 // Assuming 1-minute interval for raw data
-	}
-	val, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return defaultVal
-	}
-	return val
 }

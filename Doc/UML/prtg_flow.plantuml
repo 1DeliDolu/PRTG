@@ -8,8 +8,6 @@ start
 if (Config Valid?) then (yes)
     :Initialize API;
     switch (Select Query Type)
-    case (Status)
-        :Get Status List;
     case (Groups)
         :Get Groups;
     case (Devices)

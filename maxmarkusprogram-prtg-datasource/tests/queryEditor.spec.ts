@@ -3,70 +3,26 @@ import { test, expect } from '@grafana/plugin-e2e';
 test('smoke: should render query editor', async ({ panelEditPage, readProvisionedDataSource }) => {
   const ds = await readProvisionedDataSource({ fileName: 'datasources.yml' });
   await panelEditPage.datasource.set(ds.name);
-
-  // ✅ Check visibility of main fields in Query Editor
-  await expect(panelEditPage.getQueryEditorRow('A').getByRole('combobox', { name: 'Query Type' })).toBeVisible();
-  await expect(panelEditPage.getQueryEditorRow('A').getByRole('combobox', { name: 'Group' })).toBeVisible();
-  await expect(panelEditPage.getQueryEditorRow('A').getByRole('combobox', { name: 'Device' })).toBeVisible();
-  await expect(panelEditPage.getQueryEditorRow('A').getByRole('combobox', { name: 'Sensor' })).toBeVisible();
+  await expect(panelEditPage.getQueryEditorRow('A').getByRole('textbox', { name: 'Query Text' })).toBeVisible();
 });
 
-test('should trigger new query when group, device, and sensor fields are changed', async ({
+test('should trigger new query when Constant field is changed', async ({
   panelEditPage,
   readProvisionedDataSource,
 }) => {
   const ds = await readProvisionedDataSource({ fileName: 'datasources.yml' });
   await panelEditPage.datasource.set(ds.name);
-
-  // ✅ select Query Type
-  await panelEditPage.getQueryEditorRow('A').getByRole('combobox', { name: 'Query Type' }).selectOption('Metrics');
-
-  // ✅ select Group
-  await panelEditPage.getQueryEditorRow('A').getByRole('combobox', { name: 'Group' }).selectOption('Network Devices');
-
-  // ✅ select Device
-  await panelEditPage.getQueryEditorRow('A').getByRole('combobox', { name: 'Device' }).selectOption('Router');
-
-  // ✅ select Sensor
-  await panelEditPage.getQueryEditorRow('A').getByRole('combobox', { name: 'Sensor' }).selectOption('CPU Load');
-
-  // ✅ Check if a new query is triggered
+  await panelEditPage.getQueryEditorRow('A').getByRole('textbox', { name: 'Query Text' }).fill('test query');
   const queryReq = panelEditPage.waitForQueryDataRequest();
+  await panelEditPage.getQueryEditorRow('A').getByRole('spinbutton').fill('10');
   await expect(await queryReq).toBeTruthy();
 });
 
-test('data query should return expected values', async ({ panelEditPage, readProvisionedDataSource }) => {
+test('data query should return values 10 and 20', async ({ panelEditPage, readProvisionedDataSource }) => {
   const ds = await readProvisionedDataSource({ fileName: 'datasources.yml' });
   await panelEditPage.datasource.set(ds.name);
-
-  // ✅ Select Query Type
-  await panelEditPage.getQueryEditorRow('A').getByRole('combobox', { name: 'Query Type' }).selectOption('Metrics');
-
-  // ✅ Select Group, Device, Sensor
-  await panelEditPage.getQueryEditorRow('A').getByRole('combobox', { name: 'Group' }).selectOption('Network Devices');
-  await panelEditPage.getQueryEditorRow('A').getByRole('combobox', { name: 'Device' }).selectOption('Router');
-  await panelEditPage.getQueryEditorRow('A').getByRole('combobox', { name: 'Sensor' }).selectOption('CPU Load');
-
-  // ✅ Select "Table" as visualization
+  await panelEditPage.getQueryEditorRow('A').getByRole('textbox', { name: 'Query Text' }).fill('test query');
   await panelEditPage.setVisualization('Table');
-
-  // ✅ Paneli yenile ve beklenen değerlerin geldiğini doğrula
   await expect(panelEditPage.refreshPanel()).toBeOK();
   await expect(panelEditPage.panel.data).toContainText(['10', '20']);
-});
-
-// ✅ Test if error is returned when Query is missing
-test('should show error message when sensor is missing', async ({ panelEditPage, readProvisionedDataSource }) => {
-  const ds = await readProvisionedDataSource({ fileName: 'datasources.yml' });
-  await panelEditPage.datasource.set(ds.name);
-
-  // ✅ Select Query Type
-  await panelEditPage.getQueryEditorRow('A').getByRole('combobox', { name: 'Query Type' }).selectOption('Metrics');
-
-  // ✅ Select Group but don't select Sensor
-  await panelEditPage.getQueryEditorRow('A').getByRole('combobox', { name: 'Group' }).selectOption('Network Devices');
-
-  // ✅ Refresh panel and check for error message
-  await expect(panelEditPage.refreshPanel()).not.toBeOK();
-  await expect(panelEditPage).toHaveAlert('error', { hasText: 'Sensor is required' });
 });

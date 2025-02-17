@@ -1,4 +1,4 @@
-import { DataSourceInstanceSettings, ScopedVars } from '@grafana/data'
+import { AnnotationQuery, AnnotationSupport, DataSourceInstanceSettings, ScopedVars } from '@grafana/data'
 import { DataSourceWithBackend, getTemplateSrv } from '@grafana/runtime'
 import {
   MyQuery,
@@ -44,8 +44,5 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
     }
     return this.getResource(`channels/${objid}`)
   }
-
-  //annotations
-  annotations = {
-  }
+  annotations?: AnnotationSupport<MyQuery, AnnotationQuery<MyQuery>> | undefined
 }

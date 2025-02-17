@@ -2,11 +2,10 @@ package plugin
 
 import (
 	"encoding/json"
-	"time"
 )
 
-// PrtgTableListResponse represents the response from PRTG Table List API.
-// Note: Check if "prtg-version" is delivered as array or string.
+// PrtgTableListResponse repräsentiert die Antwort der PRTG Table List API.
+// Hinweis: Prüfe, ob "prtg-version" als Array oder String geliefert wird.
 type PrtgTableListResponse struct {
 	PrtgVersion []PrtgStatusListResponse   `json:"prtg-version" xml:"prtg-version"`
 	TreeSize    int64                      `json:"treesize" xml:"treesize"`
@@ -18,14 +17,14 @@ type PrtgTableListResponse struct {
 
 //############################# GROUP LIST RESPONSE ####################################
 
-// PrtgGroupListResponse represents the response for groups.
+// PrtgGroupListResponse repräsentiert die Antwort für Gruppen.
 type PrtgGroupListResponse struct {
 	PrtgVersion string                    `json:"prtg-version" xml:"prtg-version"`
 	TreeSize    int64                     `json:"treesize" xml:"treesize"`
 	Groups      []PrtgGroupListItemStruct `json:"groups" xml:"groups"`
 }
 
-// PrtgGroupListItemStruct contains details for a single group.
+// PrtgGroupListItemStruct enthält Details zu einer einzelnen Gruppe.
 type PrtgGroupListItemStruct struct {
 	Active         bool    `json:"active" xml:"active"`
 	ActiveRAW      int     `json:"active_raw" xml:"active_raw"`
@@ -65,14 +64,14 @@ type PrtgGroupListItemStruct struct {
 
 //############################# DEVICE LIST RESPONSE ####################################
 
-// PrtgDevicesListResponse represents the response for devices.
+// PrtgDevicesListResponse repräsentiert die Antwort für Geräte.
 type PrtgDevicesListResponse struct {
 	PrtgVersion string                     `json:"prtg-version" xml:"prtg-version"`
 	TreeSize    int64                      `json:"treesize" xml:"treesize"`
 	Devices     []PrtgDeviceListItemStruct `json:"devices" xml:"devices"`
 }
 
-// PrtgDeviceListItemStruct contains details for a single device.
+// PrtgDeviceListItemStruct enthält Details zu einem einzelnen Gerät.
 type PrtgDeviceListItemStruct struct {
 	Active         bool    `json:"active" xml:"active"`
 	ActiveRAW      int     `json:"active_raw" xml:"active_raw"`
@@ -112,14 +111,14 @@ type PrtgDeviceListItemStruct struct {
 
 //############################# SENSOR LIST RESPONSE ####################################
 
-// PrtgSensorsListResponse represents the response for sensors.
+// PrtgSensorsListResponse repräsentiert die Antwort für Sensoren.
 type PrtgSensorsListResponse struct {
 	PrtgVersion string                     `json:"prtg-version" xml:"prtg-version"`
 	TreeSize    int64                      `json:"treesize" xml:"treesize"`
 	Sensors     []PrtgSensorListItemStruct `json:"sensors" xml:"sensors"`
 }
 
-// PrtgSensorListItemStruct contains details for a single sensor.
+// PrtgSensorListItemStruct enthält Details zu einem einzelnen Sensor.
 type PrtgSensorListItemStruct struct {
 	Active         bool    `json:"active" xml:"active"`
 	ActiveRAW      int     `json:"active_raw" xml:"active_raw"`
@@ -159,7 +158,7 @@ type PrtgSensorListItemStruct struct {
 
 //############################# STATUS LIST RESPONSE ####################################
 
-// PrtgStatusListResponse contains system-wide status information.
+// PrtgStatusListResponse enthält systemweite Statusinformationen.
 type PrtgStatusListResponse struct {
 	PrtgVersion          string `json:"prtgversion" xml:"prtg-version"`
 	AckAlarms            string `json:"ackalarms" xml:"ackalarms"`
@@ -198,54 +197,33 @@ type PrtgStatusListResponse struct {
 
 //############################# CHANNEL LIST RESPONSE ####################################
 
-// PrtgChannelsListResponse represents the response for channel values.
+// PrtgChannelsListResponse repräsentiert die Antwort für Channel-Werte.
 type PrtgChannelsListResponse struct {
 	PrtgVersion string                   `json:"prtg-version" xml:"prtg-version"`
 	TreeSize    int64                    `json:"treesize" xml:"treesize"`
-	Values      []PrtgChannelValueStruct `json:"-" xml:"-"`
+	Values      []PrtgChannelValueStruct `json:"values" xml:"values"`
 }
 
-// PrtgChannelValueStruct is used as a dynamic map for storing channel data.
+// PrtgChannelValueStruct wird als dynamische Map zur Speicherung von Channel-Daten verwendet.
 type PrtgChannelValueStruct map[string]interface{}
-
-// UnmarshalJSON implements a custom unmarshal method,
-// which handles the "datetime" value separately and packs the rest into the Value field.
-func (p *PrtgChannelValueStruct) UnmarshalJSON(data []byte) error {
-	var raw map[string]interface{}
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-
-	// Create a new map if p is nil
-	if *p == nil {
-		*p = make(PrtgChannelValueStruct)
-	}
-
-	// Copy all values to the map
-	for k, v := range raw {
-		(*p)[k] = v
-	}
-
-	return nil
-}
 
 //############################# CHANNEL VALUE RESPONSE ####################################
 
-// PrtgHistoricalDataResponse contains historical values of a sensor.
+// PrtgHistoricalDataResponse enthält historische Werte eines Sensors.
 type PrtgHistoricalDataResponse struct {
 	PrtgVersion string       `json:"prtg-version" xml:"prtg-version"`
 	TreeSize    int64        `json:"treesize" xml:"treesize"`
 	HistData    []PrtgValues `json:"histdata" xml:"histdata"`
 }
 
-// PrtgValues contains the timestamp and dynamic values.
+// PrtgValues enthält den Zeitstempel und dynamische Werte.
 type PrtgValues struct {
 	Datetime string                 `json:"datetime"`
 	Value    map[string]interface{} `json:"-"`
 }
 
-// UnmarshalJSON implements a custom unmarshal method,
-// which handles the "datetime" value separately and packs the rest into the Value field.
+// UnmarshalJSON implementiert ein benutzerdefiniertes Unmarshal-Verfahren,
+// das den "datetime"-Wert separat behandelt und den Rest in das Value-Feld packt.
 func (p *PrtgValues) UnmarshalJSON(data []byte) error {
 	var raw map[string]interface{}
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -257,46 +235,17 @@ func (p *PrtgValues) UnmarshalJSON(data []byte) error {
 	delete(raw, "datetime")
 	p.Value = raw
 	return nil
-
-}
-
-/* #################################  MESSAGE RESPONSE #################################### */
-
-// PrtgMessageResponse contains the response for messages.
-type PrtgMessageResponse struct {
-	PrtgVersion string                      `json:"prtg-version" xml:"prtg-version"`
-	TreeSize    int64                       `json:"treesize" xml:"treesize"`
-	Messages    []PrtgMessageListItemStruct `json:"messages" xml:"messages"`
-}
-
-// PrtgMessageListItemStruct contains details for a single message.
-type PrtgMessageListItemStruct struct {
-	ObjectId    int64   `json:"objid"`
-	Datetime    string  `json:"datetime"`
-	DatetimeRAW float64 `json:"datetime_raw"`
-	Parent      string  `json:"parent"`
-	Type        string  `json:"type"`
-	Name        string  `json:"name"`
-	Status      string  `json:"status"`
-	Message     string  `json:"message"`
-}
-
-// Annotation represents a single annotation event
-type Annotation struct {
-	Time time.Time
-	Text string
-	Tags []string
 }
 
 /* ##################################### QUERY MODEL #################################### */
 
-// Datasource defines basic parameters for the datasource.
+// Datasource definiert grundlegende Parameter für die Datasource.
 type Datasource struct {
 	baseURL string
 	api     *Api
 }
 
-// Group, Device and Sensor serve as simple structures for filtering.
+// Group, Device und Sensor dienen als einfache Strukturen zur Filterung.
 type Group struct {
 	Group string `json:"group"`
 }
@@ -309,7 +258,7 @@ type Sensor struct {
 	Sensor string `json:"sensor"`
 }
 
-// queryModel defines the data model for queries.
+// queryModel definiert das Datenmodell für Abfragen.
 type queryModel struct {
 	QueryType         string   `json:"queryType"`
 	ObjectId          string   `json:"objid"`
@@ -329,13 +278,7 @@ type queryModel struct {
 	To                int64    `json:"to"`
 }
 
-// MyDatasource can be used for further internal purposes.
+// MyDatasource kann für weitere interne Zwecke verwendet werden.
 type MyDatasource struct{}
 
 // 14.02.2025 13:49:00
-// Api holds API-related configurations.
-type Api struct {
-	baseURL string
-	apiKey  string
-	timeout time.Duration
-}
