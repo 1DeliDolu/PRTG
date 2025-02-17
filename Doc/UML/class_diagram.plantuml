@@ -1,4 +1,4 @@
-@startuml
+@startuml ClassDiagram
 skinparam backgroundColor white
 skinparam classAttributeIconSize 0
 
