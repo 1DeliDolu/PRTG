@@ -245,6 +245,8 @@ type Datasource struct {
 	api     *Api
 }
 
+
+
 // Group, Device und Sensor dienen als einfache Strukturen zur Filterung.
 type Group struct {
 	Group string `json:"group"`

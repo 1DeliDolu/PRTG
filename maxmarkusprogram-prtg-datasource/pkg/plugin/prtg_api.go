@@ -8,26 +8,38 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 )
 
+// cacheItem repräsentiert ein zwischengespeichertes API-Ergebnis.
+type cacheItem struct {
+	data   []byte
+	expiry time.Time
+}
+
 // Api hält API-bezogene Konfigurationen.
 type Api struct {
-	baseURL string
-	apiKey  string
-	timeout time.Duration
+	baseURL   string
+	apiKey    string
+	timeout   time.Duration
+	cacheTime time.Duration
+	cache     map[string]cacheItem
+	cacheMu   sync.RWMutex
 }
 
 // NewApi erstellt eine neue Api-Instanz.
-// Hier wird requestTimeout als Timeout für API-Anfragen genutzt.
+// Hier wird cacheTime als Gültigkeitsdauer für zwischengespeicherte API-Antworten genutzt.
 func NewApi(baseURL, apiKey string, cacheTime, requestTimeout time.Duration) *Api {
 	return &Api{
-		baseURL: baseURL,
-		apiKey:  apiKey,
-		timeout: requestTimeout,
+		baseURL:   baseURL,
+		apiKey:    apiKey,
+		timeout:   requestTimeout,
+		cacheTime: cacheTime,
+		cache:     make(map[string]cacheItem),
 	}
 }
 
@@ -58,10 +70,21 @@ func (a *Api) SetTimeout(timeout time.Duration) {
 }
 
 // baseExecuteRequest führt die HTTP-Anfrage durch und liefert den Response-Body.
+// Zusätzlich wird das Ergebnis zwischengespeichert, sofern cacheTime > 0 gesetzt ist.
 func (a *Api) baseExecuteRequest(endpoint string, params map[string]string) ([]byte, error) {
 	apiUrl, err := a.buildApiUrl(endpoint, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build URL: %w", err)
+	}
+
+	// Cache-Überprüfung: Liegt ein gültiger Eintrag vor, wird dieser zurückgegeben.
+	if a.cacheTime > 0 {
+		a.cacheMu.RLock()
+		if item, ok := a.cache[apiUrl]; ok && time.Now().Before(item.expiry) {
+			a.cacheMu.RUnlock()
+			return item.data, nil
+		}
+		a.cacheMu.RUnlock()
 	}
 
 	client := &http.Client{
@@ -98,6 +121,17 @@ func (a *Api) baseExecuteRequest(endpoint string, params map[string]string) ([]b
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
+
+	// Speichern der Antwort im Cache
+	if a.cacheTime > 0 {
+		a.cacheMu.Lock()
+		a.cache[apiUrl] = cacheItem{
+			data:   body,
+			expiry: time.Now().Add(a.cacheTime),
+		}
+		a.cacheMu.Unlock()
+	}
+
 	return body, nil
 }
 
@@ -231,24 +265,10 @@ func (a *Api) GetHistoricalData(sensorID string, startDate, endDate int64) (*Prt
 	// Determine averaging interval
 	var avg string
 	switch {
-	case hours <= 12:
+	case hours <= 960:
 		avg = "0"
-	case hours <= 36:
-		avg = "60"
-	case hours <= 72:
-		avg = "300"
-	case hours <= 168:
-		avg = "900"
-	case hours <= 336:
-		avg = "1800"
-	case hours <= 720:
-		avg = "3600"
-	case hours <= 1440:
-		avg = "7200"
-	case hours <= 2160:
-		avg = "14400"
 	default:
-		avg = "86400"
+		avg = "3600"
 	}
 	// Set up API request parameters
 	params := map[string]string{
