@@ -72,8 +72,9 @@ func parsePRTGDateTime(datetime string) (time.Time, string, error) {
 	for _, layout := range layouts {
 		parsedTime, err := time.Parse(layout, datetime)
 		if err == nil {
-			unixTime := parsedTime.Unix()
-			return parsedTime, strconv.FormatInt(unixTime, 10), nil
+			localTime := parsedTime.In(time.Local)
+			unixTime := localTime.Unix()
+			return localTime, strconv.FormatInt(unixTime, 10), nil
 		}
 		parseErr = err
 	}
