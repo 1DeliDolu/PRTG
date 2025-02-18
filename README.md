@@ -152,7 +152,7 @@ You can now save this content in the README.md file in your repository.
 
   ![1739796591456](image/README/1739796591456.png)
 
-## Text
+## Query Text
 
 1.Query Text
 ![1739796808632](image/README/1739796808632.png)
@@ -165,3 +165,140 @@ You can now save this content in the README.md file in your repository.
 ![1739797385328](image/README/1739797385328.png)
 
 ![1739797413883](image/README/1739797413883.png)
+
+## Video
+
+1. copy repository  https://github.com/1DeliDolu/PRTG.git
+
+<video width="1000" height="500" controls>
+  <source src="./video/clone.mp4" type="video/mp4">
+</video>
+``
+
+
+2. open vs code and terminal with bash. Clone Repository
+
+<video width="1000" height="500" controls>
+  <source src="./video/vsc_clone.mp4" type="video/mp4">
+</video>
+``
+
+
+3. Open new terminal with  wsl (i use debian) and  land "maxmarkusprogram-prtg-datasource" cd maxmarkusprogram-prtg-datasource
+
+<video width="10000" height="500" controls>
+  <source src="./video/cd.mp4" type="video/mp4">
+</video>
+``
+
+
+
+4. npm install
+
+
+<video width="1000" height="500" controls>
+  <source src="./video/npminstall.mp4" type="video/mp4">
+</video>
+``
+
+
+5. npm run build
+
+
+<video width="1000" height="500" controls>
+  <source src="./video/build.mp4" type="video/mp4">
+</video>
+``
+
+
+7. mage
+
+
+<video width="1000" height="500" controls>
+  <source src="./video/mage.mp4" type="video/mp4">
+</video>
+``
+
+
+7. mv dist/ Prtg
+
+
+<video width="1000" height="500" controls>
+  <source src="./video/prtg.mp4" type="video/mp4">
+</video>
+``
+
+
+8. close vs code
+
+
+<video width="1000" height="500" controls>
+  <source src="./video/closevsc.mp4" type="video/mp4">
+</video>
+``
+
+
+9. copy
+
+
+<video width="1000" height="500" controls>
+  <source src="./video/copy.mp4" type="video/mp4">
+</video>
+``
+
+
+10. paste Prtg in C:\Program Files\GrafanaLabs\grafana\data\plugins
+
+
+<video width="1000" height="500" controls>
+  <source src="./video/paste.mp4" type="video/mp4">
+</video>
+``
+
+
+11. Stop and start Grafana with powershell
+
+
+<video width="1000" height="500" controls>
+  <source src="./video/stop-start-grafana.mp4" type="video/mp4">
+</video>
+``
+
+
+12. Sign in
+
+    **at firts time
+    `user admin
+    pasword admin`**
+
+<video width="1000" height="500" controls>
+  <source src="./video/anmeldung.mp4" type="video/mp4">
+</video>
+``
+
+
+13. Datasource panel
+
+
+<video width="1000" height="500" controls>
+  <source src="./video/datasource.mp4" type="video/mp4">
+</video>
+``
+
+
+14.Create query
+
+
+<video width="1000" height="500" controls>
+  <source src="./video/query.mp4" type="video/mp4">
+</video>
+``
+
+
+15. dashboard
+
+
+<video width="1000" height="500" controls>
+  <source src="./video/dashboard.mp4" type="video/mp4">
+</video>
+``
