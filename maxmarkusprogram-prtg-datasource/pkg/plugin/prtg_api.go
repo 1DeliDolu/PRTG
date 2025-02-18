@@ -238,17 +238,16 @@ func (a *Api) GetChannels(objid string) (*PrtgChannelValueStruct, error) {
 
 // GetHistoricalData ruft historische Daten für den angegebenen Sensor und Zeitraum ab.
 func (a *Api) GetHistoricalData(sensorID string, startDate, endDate int64) (*PrtgHistoricalDataResponse, error) {
-
 	// Input validation
 	if sensorID == "" {
 		return nil, fmt.Errorf("invalid query: missing sensor ID")
 	}
 
-	// Convert timestamps to time.Time
-	startTime := time.UnixMilli(startDate)
-	endTime := time.UnixMilli(endDate)
+	// Convert timestamps to local time
+	startTime := time.UnixMilli(startDate).Local()
+	endTime := time.UnixMilli(endDate).Local()
 
-	// Format dates
+	// Format dates in local time
 	const format = "2006-01-02-15-04-05"
 	sdate := startTime.Format(format)
 	edate := endTime.Format(format)
@@ -267,6 +266,7 @@ func (a *Api) GetHistoricalData(sensorID string, startDate, endDate int64) (*Prt
 	default:
 		avg = "3600"
 	}
+
 	// Set up API request parameters
 	params := map[string]string{
 		"id":         sensorID,
