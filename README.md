@@ -95,7 +95,10 @@ You can now save this content in the README.md file in your repository.
 
 ![1739794166798](image/README/1739794166798.png)
 
-8.Select Query Type
+
+## Query Metrics
+
+Select Query Type
 
 ![1739795234405](image/README/1739795234405.png)
 
@@ -142,7 +145,7 @@ You can now save this content in the README.md file in your repository.
 20.Select Stat
 ![1739796324396](image/README/1739796324396.png)
 
-## Raw Metric
+## Query Raw
 
 1.Select Query Raw, Group, Device, Sensor,  Property and Filter Property
 
