@@ -8,30 +8,58 @@ This Grafana datasource plugin integrates with PRTG, enabling users to fetch and
 
 ## Installation
 
+First you need to download docker and go(golang) to your computer
+
+Install [Docker](https://www.docker.com/)
+
+Install [Go](https://go.dev/dl/)
+
 1. Clone the repository:
+
    ```sh
    git clone https://github.com/1DeliDolu/PRTG.git
    ```
 2. Navigate to the plugin directory:
+
    ```sh
    cd PRTG/maxmarkusprogram-prtg-datasource
    ```
 3. Install dependencies:
+
    ```sh
    npm install
    ```
 4. Build the plugin:
+
    ```sh
    npm run build
    ```
 5. Copy the plugin to Grafana's plugin directory:
+
    ```sh
    cp -r dist /var/lib/grafana/plugins/PRTG
    ```
-6. Restart Grafana:
+6. mage
+
+   ```
+   mage
+   ```
+7. Restart Grafana:
+
    ```sh
    sudo systemctl restart grafana-server
    ```
+
+### **... or**
+
+After clone, copy ***Prtg Folder*** to C:\Program Files\GrafanaLabs\grafana\data\plugins
+
+**Restart Grafana:**
+
+```sh
+sudo systemctl restart grafana-server
+```
+
 
 ## Configuration
 
@@ -94,7 +122,6 @@ You can now save this content in the README.md file in your repository.
 7.Press PRTG
 
 ![1739794166798](image/README/1739794166798.png)
-
 
 ## Query Metrics
 
@@ -178,14 +205,12 @@ Select Query Type
 </video>
 ``
 
-
 2. open vs code and terminal with bash. Clone Repository
 
 <video width="1000" height="500" controls>
   <source src="./video/vsc_clone.mp4" type="video/mp4">
 </video>
 ``
-
 
 3. Open new terminal with  wsl (i use debian) and  land "maxmarkusprogram-prtg-datasource" cd maxmarkusprogram-prtg-datasource
 
@@ -194,112 +219,87 @@ Select Query Type
 </video>
 ``
 
-
-
 4. npm install
-
 
 <video width="1000" height="500" controls>
   <source src="./video/npminstall.mp4" type="video/mp4">
 </video>
 ``
 
-
 5. npm run build
-
 
 <video width="1000" height="500" controls>
   <source src="./video/build.mp4" type="video/mp4">
 </video>
 ``
 
-
 7. mage
-
 
 <video width="1000" height="500" controls>
   <source src="./video/mage.mp4" type="video/mp4">
 </video>
 ``
 
-
 7. mv dist/ Prtg
-
 
 <video width="1000" height="500" controls>
   <source src="./video/prtg.mp4" type="video/mp4">
 </video>
 ``
 
-
 8. close vs code
-
 
 <video width="1000" height="500" controls>
   <source src="./video/closevsc.mp4" type="video/mp4">
 </video>
 ``
 
-
 9. copy
-
 
 <video width="1000" height="500" controls>
   <source src="./video/copy.mp4" type="video/mp4">
 </video>
 ``
 
-
 10. paste Prtg in C:\Program Files\GrafanaLabs\grafana\data\plugins
-
 
 <video width="1000" height="500" controls>
   <source src="./video/paste.mp4" type="video/mp4">
 </video>
 ``
 
-
 11. Stop and start Grafana with powershell
-
 
 <video width="1000" height="500" controls>
   <source src="./video/stop-start-grafana.mp4" type="video/mp4">
 </video>
 ``
 
-
 12. Sign in
 
     **at firts time
-    `user admin
-    pasword admin`**
+    `user admin pasword admin`**
 
 <video width="1000" height="500" controls>
   <source src="./video/anmeldung.mp4" type="video/mp4">
 </video>
 ``
 
-
 13. Datasource panel
-
 
 <video width="1000" height="500" controls>
   <source src="./video/datasource.mp4" type="video/mp4">
 </video>
 ``
 
-
 14.Create query
-
 
 <video width="1000" height="500" controls>
   <source src="./video/query.mp4" type="video/mp4">
 </video>
 ``
 
-
 15. dashboard
-
 
 <video width="1000" height="500" controls>
   <source src="./video/dashboard.mp4" type="video/mp4">
