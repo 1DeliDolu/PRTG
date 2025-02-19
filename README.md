@@ -34,21 +34,34 @@ Install [Go](https://go.dev/dl/)
    ```sh
    npm run build
    ```
-5. Copy the plugin to Grafana's plugin directory:
+5. Build backend plugin
 
-   ```sh
-   cp -r dist /var/lib/grafana/plugins/PRTG
-   ```
-6. mage
-
-   ```
+```text
    mage
+```
+
+6. Rename the `dist` directory to
+
+   ```
+   cp -r dist /var/lib/grafana/plugins/PRTG
    ```
 7. Restart Grafana:
 
-   ```sh
+   **with wsl**
+
+   ```
    sudo systemctl restart grafana-server
    ```
+
+
+**
+    or with Powershell**
+
+```
+net stop grafana
+
+net start grafana
+```
 
 ### **... or**
 
@@ -59,7 +72,6 @@ After clone, copy ***Prtg Folder*** to C:\Program Files\GrafanaLabs\grafana\data
 ```sh
 sudo systemctl restart grafana-server
 ```
-
 
 ## Configuration
 

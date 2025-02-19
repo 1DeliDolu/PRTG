@@ -132,11 +132,11 @@ cd /mnt/d/Praxis/PRTG/maxmarkusprogram-prtg-datasource
 
 If you installed Grafana as a Windows service:
 
-####  🚫 ****Stop Grafana****
+#### 🚫 ****Stop Grafana****
 
 `net stop grafana`
 
-####  ▶ **Start Grafana**
+#### ▶ **Start Grafana**
 
 `net start grafana`
 
@@ -166,9 +166,16 @@ optional
 
 ## 3.Rename the dist and zip
 
+```
 mv dist/ maxmarkusprogram-prtg-datasource
+```
 
+```
 zip maxmarkusprogram-prtg-datasource-1.0.0.zip maxmarkusprogram-prtg-datasource -r
+```
+
+**... or**
+
 "zip -r maxmarkusprogram-prtg-datasource-1.0.0.zip maxmarkusprogram-prtg-datasource"
 
 ### 4.1.SHA-1 hash
@@ -181,17 +188,19 @@ md5sum maxmarkusprogram-prtg-datasource-1.0.0.zip > maxmarkusprogram-prtg-dataso
 
 ## 5.Automate packaging and signing with GitHub CI
 
-`git checkout main `
+```
+git checkout main 
+git pull origin main 
+git tag v1.0.0 
+git push origin v1.0.0
+```
 
-`git pull origin main `
-
-`git tag v1.0.0 `
-
-`git push origin v1.0.0`
 
 **re-tag the release**
 
-`git tag -d v1.0.0
-git push --delete origin v1.0.0
-git checkout main
-git pull origin main`
+```
+git tag -d v1.0.0 
+git push --delete origin v1.0.0 
+git checkout main 
+git pull origin main
+```
