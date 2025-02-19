@@ -16,7 +16,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   //@ts-ignore
   const [sensor, setSensor] = useState<string>('')
   //@ts-ignore
-  const [channel, setChannel] = useState<string>('')
+  const [channel, setChannel] = useState<string[]>([])
   const [objid, setObjid] = useState<string>('')
 
   const [lists, setLists] = useState({
@@ -220,7 +220,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     setGroup(value.value!)
     setDevice('')
     setSensor('')
-    setChannel('')
+    setChannel([])
     setObjid('')
 
     setLists((prev) => ({
@@ -240,7 +240,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     })
     setDevice(value.value!)
     setSensor('')
-    setChannel('')
+    setChannel([])
 
     setLists((prev) => ({
       ...prev,
@@ -279,7 +279,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     })
     setSensor(value.value!)
     setObjid(sensorObjid)
-    setChannel('')
+    setChannel([])
 
     setLists((prev) => ({
       ...prev,
@@ -289,11 +289,19 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     onRunQuery()
   }
 
-  const onChannelChange = (value: SelectableValue<string>) => {
-    onChange({ ...query, channel: value.value! })
-    setChannel(value.value!)
-    onRunQuery()
-  }
+  const onChannelChange = (value: SelectableValue<string> | Array<SelectableValue<string>>) => {
+    // Eğer tek değer seçildiyse array'e çevir, değilse direkt kullan
+    const selectedChannels = Array.isArray(value) ? value.map(v => v.value || '') : [];
+    
+    onChange({
+      ...query,
+      channels: selectedChannels, // Çoklu seçimleri channels array'ine kaydet
+      channel: selectedChannels[0] || '', // Geriye dönük uyumluluk için ilk kanalı tek channel'a kaydet
+    });
+    
+    setChannel(selectedChannels);
+    onRunQuery();
+  };
 
   const onPropertyChange = (value: SelectableValue<string>) => {
     onChange({ ...query, property: value.value! })
@@ -385,12 +393,13 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
               <Select
                 isLoading={!lists.channels.length}
                 options={lists.channels}
-                value={query.channel}
+                value={(query.channels || []).map(c => ({ label: c, value: c })) || []}
                 onChange={onChannelChange}
                 width={47}
                 allowCustomValue
                 placeholder="Select Channel or type '*'"
                 isClearable
+                isMulti={true} // Çoklu seçimi aktif et
                 isDisabled={!query.sensor}
               />
             </InlineField>

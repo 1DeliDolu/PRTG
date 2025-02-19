@@ -38,9 +38,8 @@ func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, quer
 
 	switch qm.QueryType {
 	case "metrics":
-		// Metrics handling code
-		fromTime := query.TimeRange.From.UnixMilli()
-		toTime := query.TimeRange.To.UnixMilli()
+		fromTime := query.TimeRange.From.UTC()
+		toTime := query.TimeRange.To.UTC()
 
 		historicalData, err := d.api.GetHistoricalData(qm.ObjectId, fromTime, toTime)
 		if err != nil {
@@ -48,60 +47,84 @@ func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, quer
 			return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("API request failed: %v", err))
 		}
 
-		// Assumption: historicalData.Treesize contains the value from the JSON ("treesize")
-		times := make([]time.Time, 0)
-		values := make([]float64, 0)
+		// Çoklu kanal desteği için channels listesini hazırla
+		var channels []string
+		if len(qm.Channels) > 0 {
+			channels = qm.Channels // Öncelikle çoklu seçilen kanalları kullan
+		} else if qm.Channel != "" {
+			channels = []string{qm.Channel} // Geriye dönük uyumluluk için tek kanalı kullan
+		}
 
-		for _, item := range historicalData.HistData {
-			parsedTime, _, err := parsePRTGDateTime(item.Datetime)
-			if err != nil {
-				backend.Logger.Warn("Date parsing failed", "datetime", item.Datetime, "error", err)
+		backend.Logger.Debug("Processing channels", "count", len(channels), "channels", channels)
+
+		// Her kanal için ayrı bir frame oluştur
+		for _, channelName := range channels {
+			if channelName == "" {
 				continue
 			}
-			if val, ok := item.Value[qm.Channel]; ok {
-				switch v := val.(type) {
-				case float64:
-					values = append(values, v)
-				case string:
-					if floatVal, err := strconv.ParseFloat(v, 64); err == nil {
-						values = append(values, floatVal)
-					} else {
-						backend.Logger.Warn("Cannot convert value to float64", "value", v, "error", err)
-						continue
-					}
-				default:
-					backend.Logger.Warn("Unexpected value type", "type", fmt.Sprintf("%T", v), "value", v)
+
+			times := make([]time.Time, 0, len(historicalData.HistData))
+			values := make([]float64, 0, len(historicalData.HistData))
+
+			// Kanal verilerini topla
+			for _, item := range historicalData.HistData {
+				parsedTime, _, err := parsePRTGDateTime(item.Datetime)
+				if err != nil {
+					backend.Logger.Warn("Time parsing failed",
+						"channel", channelName,
+						"datetime", item.Datetime,
+						"error", err)
 					continue
 				}
-				times = append(times, parsedTime)
-			} else {
-				backend.Logger.Warn("Channel not found in item.Value, using default value", "channel", qm.Channel)
-				times = append(times, parsedTime)
-				values = append(values, 0.0)
+
+				if val, exists := item.Value[channelName]; exists {
+					switch v := val.(type) {
+					case float64:
+						values = append(values, v)
+					case string:
+						if floatVal, err := strconv.ParseFloat(v, 64); err == nil {
+							values = append(values, floatVal)
+						} else {
+							backend.Logger.Warn("Value conversion failed",
+								"channel", channelName,
+								"value", v,
+								"error", err)
+							continue
+						}
+					default:
+						backend.Logger.Warn("Unexpected value type",
+							"channel", channelName,
+							"type", fmt.Sprintf("%T", v))
+						continue
+					}
+					times = append(times, parsedTime)
+				}
 			}
+
+			// Kanal için display name oluştur
+			displayName := channelName
+			if qm.IncludeGroupName && qm.Group != "" {
+				displayName = fmt.Sprintf("%s - %s", qm.Group, displayName)
+			}
+			if qm.IncludeDeviceName && qm.Device != "" {
+				displayName = fmt.Sprintf("%s - %s", qm.Device, displayName)
+			}
+			if qm.IncludeSensorName && qm.Sensor != "" {
+				displayName = fmt.Sprintf("%s - %s", qm.Sensor, displayName)
+			}
+
+			// Kanal için frame oluştur
+			frame := data.NewFrame(fmt.Sprintf("response_%s", channelName),
+				data.NewField("Time", nil, times),
+				data.NewField("Value", nil, values).SetConfig(&data.FieldConfig{
+					DisplayName: displayName,
+				}),
+			)
+
+			response.Frames = append(response.Frames, frame)
 		}
 
-		var parts []string
-		if qm.IncludeGroupName && qm.Group != "" {
-			parts = append(parts, qm.Group)
-		}
-		if qm.IncludeDeviceName && qm.Device != "" {
-			parts = append(parts, qm.Device)
-		}
-		if qm.IncludeSensorName && qm.Sensor != "" {
-			parts = append(parts, qm.Sensor)
-		}
-		parts = append(parts, qm.Channel)
-		displayName := strings.Join(parts, " - ")
-
-		frame := data.NewFrame("response",
-			data.NewField("Time", nil, times),
-			data.NewField("Value", nil, values).SetConfig(&data.FieldConfig{
-				DisplayName: displayName,
-			}),
-		)
-
-		response.Frames = append(response.Frames, frame)
+		return response
 
 	case "text":
 		// Handle text mode by using the non-raw property
@@ -118,8 +141,6 @@ func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, quer
 	default:
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("Unknown query type: %s", qm.QueryType))
 	}
-
-	return response
 }
 
 // handlePropertyQuery processes a property query based on the queryModel (qm)

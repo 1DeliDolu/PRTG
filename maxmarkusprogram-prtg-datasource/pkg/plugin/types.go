@@ -273,9 +273,7 @@ type queryModel struct {
 	IncludeGroupName  bool     `json:"includeGroupName"`
 	IncludeDeviceName bool     `json:"includeDeviceName"`
 	IncludeSensorName bool     `json:"includeSensorName"`
-	Groups            []string `json:"groups,omitempty"`
-	Devices           []string `json:"devices,omitempty"`
-	Sensors           []string `json:"sensors,omitempty"`
+	Channels          []string `json:"channels,omitempty"`
 	From              int64    `json:"from"`
 	To                int64    `json:"to"`
 }

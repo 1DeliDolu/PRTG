@@ -79,6 +79,13 @@ func parsePRTGDateTime(datetime string) (time.Time, string, error) {
 		parseErr = err
 	}
 
+	// Log firth 5 date format 
+
+
+
+  
+
+
 	backend.Logger.Error("Date parsing failed for all formats",
 		"datetime", datetime,
 		"error", parseErr)

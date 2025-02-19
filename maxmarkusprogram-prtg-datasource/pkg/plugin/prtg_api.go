@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 )
 
@@ -237,20 +237,22 @@ func (a *Api) GetChannels(objid string) (*PrtgChannelValueStruct, error) {
 }
 
 // GetHistoricalData ruft historische Daten für den angegebenen Sensor und Zeitraum ab.
-func (a *Api) GetHistoricalData(sensorID string, startDate, endDate int64) (*PrtgHistoricalDataResponse, error) {
+func (a *Api) GetHistoricalData(sensorID string, startDate, endDate time.Time) (*PrtgHistoricalDataResponse, error) {
 	// Input validation
 	if sensorID == "" {
 		return nil, fmt.Errorf("invalid query: missing sensor ID")
 	}
 
 	// Convert timestamps to local time
-	startTime := time.UnixMilli(startDate).Local()
-	endTime := time.UnixMilli(endDate).Local()
+	startTime := startDate
+	endTime := endDate
 
 	// Format dates in local time
 	const format = "2006-01-02-15-04-05"
 	sdate := startTime.Format(format)
 	edate := endTime.Format(format)
+
+	backend.Logger.Debug("Fetching historical data", "sensorID", sensorID, "startDate", sdate, "endDate", edate)
 
 	// Calculate hours and validate time range
 	hours := endTime.Sub(startTime).Hours()

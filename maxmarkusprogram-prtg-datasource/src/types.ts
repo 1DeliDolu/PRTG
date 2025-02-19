@@ -12,17 +12,14 @@ export interface MyQuery extends DataQuery {
   device: string;
   sensor: string;
   objid: number | string;
-  channel: string;
+  channel: string;    
+  channels: string[];
   queryType: QueryType;
   property: string;
   filterProperty: string;
   includeGroupName: boolean;
   includeDeviceName: boolean;
   includeSensorName: boolean;
-  groups: Array<string>;
-  devices: Array<string>;
-  sensors: Array<string>;
-  channels: Array<string>;
 }
 
 export interface DataPoint {
