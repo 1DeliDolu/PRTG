@@ -221,20 +221,40 @@ func (a *Api) GetChannels(objid string) (*PrtgChannelValueStruct, error) {
 	return &response, nil
 }
 
+<<<<<<< HEAD
 /*  ########################################## GetHistoricalData ################################################## */
 func (a *Api) GetHistoricalData(sensorID string, startDate, endDate time.Time) (*PrtgHistoricalDataResponse, error) {
+=======
+// GetHistoricalData ruft historische Daten für den angegebenen Sensor und Zeitraum ab.
+func (a *Api) GetHistoricalData(sensorID string, startDate, endDate time.Time) (*PrtgHistoricalDataResponse, error) {
+	// Input validation
+>>>>>>> b7ec34b15515724822d7961b43e74d64b1be22b5
 	if sensorID == "" {
 		return nil, fmt.Errorf("invalid query: missing sensor ID")
 	}
 
+<<<<<<< HEAD
 	// Zaman aralığını 1 saat geriye al (önceki -1 yerine +1 yapıyoruz)
 	startTime := startDate.Add(time.Hour)
 	endTime := endDate.Add(time.Hour)
 
+=======
+	// Convert timestamps to local time
+	startTime := startDate
+	endTime := endDate
+
+	// Format dates in local time
+>>>>>>> b7ec34b15515724822d7961b43e74d64b1be22b5
 	const format = "2006-01-02-15-04-05"
 	sdate := startTime.Format(format)
 	edate := endTime.Format(format)
 
+<<<<<<< HEAD
+=======
+	backend.Logger.Debug("Fetching historical data", "sensorID", sensorID, "startDate", sdate, "endDate", edate)
+
+	// Calculate hours and validate time range
+>>>>>>> b7ec34b15515724822d7961b43e74d64b1be22b5
 	hours := endTime.Sub(startTime).Hours()
 
 	if hours <= 0 {
@@ -253,6 +273,7 @@ func (a *Api) GetHistoricalData(sensorID string, startDate, endDate time.Time) (
 		avg = "86400" // Günlük ortalama
 	}
 
+<<<<<<< HEAD
 	// Debug log için ISO formatında tarih göster
 	backend.Logger.Debug(fmt.Sprintf("Average: %v, Total Hours: %v, Start Date (ISO): %v, End Date (ISO): %v",
 		avg,
@@ -260,6 +281,9 @@ func (a *Api) GetHistoricalData(sensorID string, startDate, endDate time.Time) (
 		startTime.Format(time.RFC3339),
 		endTime.Format(time.RFC3339)))
 
+=======
+	// Set up API request parameters
+>>>>>>> b7ec34b15515724822d7961b43e74d64b1be22b5
 	params := map[string]string{
 		"id":      sensorID,
 		"columns": "datetime,value_",

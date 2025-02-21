@@ -34,7 +34,11 @@
             }
         ],
         "version": "1.0.0",
+<<<<<<< HEAD
         "updated": "2025-02-21"
+=======
+        "updated": "2025-02-19"
+>>>>>>> b7ec34b15515724822d7961b43e74d64b1be22b5
     },
     "routes": [
         {
@@ -59,5 +63,5 @@
         "grafanaDependency": ">=10.4.0",
         "plugins": []
     },
-    "buildMode": "production"
+    "buildMode": "development"
 }
