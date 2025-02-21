@@ -7,31 +7,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sync"
 	"time"
 
-
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 )
 
-// cacheItem repräsentiert ein zwischengespeichertes API-Ergebnis.
-type cacheItem struct {
-	data   []byte
-	expiry time.Time
-}
-
-// Api hält API-bezogene Konfigurationen.
-type Api struct {
-	baseURL   string
-	apiKey    string
-	timeout   time.Duration
-	cacheTime time.Duration
-	cache     map[string]cacheItem
-	cacheMu   sync.RWMutex
-}
-
-// NewApi erstellt eine neue Api-Instanz.
-// Hier wird cacheTime als Gültigkeitsdauer für zwischengespeicherte API-Antworten genutzt.
 func NewApi(baseURL, apiKey string, cacheTime, requestTimeout time.Duration) *Api {
 	return &Api{
 		baseURL:   baseURL,
@@ -42,7 +23,7 @@ func NewApi(baseURL, apiKey string, cacheTime, requestTimeout time.Duration) *Ap
 	}
 }
 
-// buildApiUrl erstellt eine standardisierte PRTG-API-URL mit übergebenen Parametern.
+/*  ################################################# buildApiUrl ##################################################### */
 func (a *Api) buildApiUrl(method string, params map[string]string) (string, error) {
 	baseUrl := fmt.Sprintf("%s/api/%s", a.baseURL, method)
 	u, err := url.Parse(baseUrl)
@@ -61,22 +42,19 @@ func (a *Api) buildApiUrl(method string, params map[string]string) (string, erro
 	return u.String(), nil
 }
 
-// SetTimeout aktualisiert das Timeout für API-Anfragen.
 func (a *Api) SetTimeout(timeout time.Duration) {
 	if timeout > 0 {
 		a.timeout = timeout
 	}
 }
 
-// baseExecuteRequest führt die HTTP-Anfrage durch und liefert den Response-Body.
-// Zusätzlich wird das Ergebnis zwischengespeichert, sofern cacheTime > 0 gesetzt ist.
+/* #############################################  baseExecuteRequest #####################################################*/
 func (a *Api) baseExecuteRequest(endpoint string, params map[string]string) ([]byte, error) {
 	apiUrl, err := a.buildApiUrl(endpoint, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build URL: %w", err)
 	}
 
-	// Cache-Überprüfung: Liegt ein gültiger Eintrag vor, wird dieser zurückgegeben.
 	if a.cacheTime > 0 {
 		a.cacheMu.RLock()
 		if item, ok := a.cache[apiUrl]; ok && time.Now().Before(item.expiry) {
@@ -89,7 +67,7 @@ func (a *Api) baseExecuteRequest(endpoint string, params map[string]string) ([]b
 	client := &http.Client{
 		Timeout: a.timeout,
 		Transport: &http.Transport{
-			// Achtung: InsecureSkipVerify sollte in Produktionsumgebungen überprüft werden!
+
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 	}
@@ -121,7 +99,6 @@ func (a *Api) baseExecuteRequest(endpoint string, params map[string]string) ([]b
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Speichern der Antwort im Cache
 	if a.cacheTime > 0 {
 		a.cacheMu.Lock()
 		a.cache[apiUrl] = cacheItem{
@@ -134,7 +111,7 @@ func (a *Api) baseExecuteRequest(endpoint string, params map[string]string) ([]b
 	return body, nil
 }
 
-// GetStatusList ruft die Statusliste der PRTG-API ab.
+/*  ########################################## GetStausList ################################################## */
 func (a *Api) GetStatusList() (*PrtgStatusListResponse, error) {
 	body, err := a.baseExecuteRequest("status.json", nil)
 	if err != nil {
@@ -148,7 +125,7 @@ func (a *Api) GetStatusList() (*PrtgStatusListResponse, error) {
 	return &response, nil
 }
 
-// GetGroups ruft die Gruppenliste ab.
+/*  ########################################## GetGroups ################################################## */
 func (a *Api) GetGroups() (*PrtgGroupListResponse, error) {
 	params := map[string]string{
 		"content": "groups",
@@ -169,12 +146,17 @@ func (a *Api) GetGroups() (*PrtgGroupListResponse, error) {
 	return &response, nil
 }
 
-// GetDevices ruft die Geräte-Liste ab.
-func (a *Api) GetDevices() (*PrtgDevicesListResponse, error) {
+/*  ########################################## GetDevices ################################################## */
+func (a *Api) GetDevices(group string) (*PrtgDevicesListResponse, error) {
+	if group == "" {
+		return nil, fmt.Errorf("group parameter is required")
+	}
+
 	params := map[string]string{
-		"content": "devices",
-		"columns": "active,channel,datetime,device,group,message,objid,priority,sensor,status,tags",
-		"count":   "50000",
+		"content":      "devices",
+		"columns":      "active,channel,datetime,device,group,message,objid,priority,sensor,status,tags",
+		"count":        "50000",
+		"filter_group": group,
 	}
 
 	body, err := a.baseExecuteRequest("table.json", params)
@@ -190,12 +172,17 @@ func (a *Api) GetDevices() (*PrtgDevicesListResponse, error) {
 	return &response, nil
 }
 
-// GetSensors ruft die Sensoren-Liste ab.
-func (a *Api) GetSensors() (*PrtgSensorsListResponse, error) {
+/*  ########################################## GetSensors ################################################## */
+func (a *Api) GetSensors(device string) (*PrtgSensorsListResponse, error) {
+	if device == "" {
+		return nil, fmt.Errorf("device parameter is required")
+	}
+
 	params := map[string]string{
-		"content": "sensors",
-		"columns": "active,channel,datetime,device,group,message,objid,priority,sensor,status,tags",
-		"count":   "50000",
+		"content":       "sensors",
+		"columns":       "active,channel,datetime,device,group,message,objid,priority,sensor,status,tags",
+		"count":         "50000",
+		"filter_device": device,
 	}
 
 	body, err := a.baseExecuteRequest("table.json", params)
@@ -211,7 +198,7 @@ func (a *Api) GetSensors() (*PrtgSensorsListResponse, error) {
 	return &response, nil
 }
 
-// GetChannels ruft die Channel-Werte für die angegebene objid ab.
+/*  ########################################## GetChannels ################################################## */
 func (a *Api) GetChannels(objid string) (*PrtgChannelValueStruct, error) {
 	params := map[string]string{
 		"content":    "values",
@@ -226,8 +213,6 @@ func (a *Api) GetChannels(objid string) (*PrtgChannelValueStruct, error) {
 		return nil, err
 	}
 
-
-
 	var response PrtgChannelValueStruct
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
@@ -236,61 +221,67 @@ func (a *Api) GetChannels(objid string) (*PrtgChannelValueStruct, error) {
 	return &response, nil
 }
 
-// GetHistoricalData ruft historische Daten für den angegebenen Sensor und Zeitraum ab.
-func (a *Api) GetHistoricalData(sensorID string, startDate, endDate int64) (*PrtgHistoricalDataResponse, error) {
-
-	// Input validation
+/*  ########################################## GetHistoricalData ################################################## */
+func (a *Api) GetHistoricalData(sensorID string, startDate, endDate time.Time) (*PrtgHistoricalDataResponse, error) {
 	if sensorID == "" {
 		return nil, fmt.Errorf("invalid query: missing sensor ID")
 	}
 
-	// Convert timestamps to time.Time
-	startTime := time.UnixMilli(startDate)
-	endTime := time.UnixMilli(endDate)
+	// Zaman aralığını 1 saat geriye al (önceki -1 yerine +1 yapıyoruz)
+	startTime := startDate.Add(time.Hour)
+	endTime := endDate.Add(time.Hour)
 
-	// Format dates
 	const format = "2006-01-02-15-04-05"
 	sdate := startTime.Format(format)
 	edate := endTime.Format(format)
 
-	// Calculate hours and validate time range
 	hours := endTime.Sub(startTime).Hours()
+
 	if hours <= 0 {
 		return nil, fmt.Errorf("invalid time range: start date %v must be before end date %v", startTime, endTime)
 	}
 
-	// Determine averaging interval
 	var avg string
 	switch {
-	case hours <= 960:
+	case hours <= 24:
 		avg = "0"
-	default:
-		avg = "3600"
+	case hours <= 168: // 1 haftaya kadar
+		avg = "300" // 5 dakikalık ortalama
+	case hours <= 744: // 1 aya kadar
+		avg = "3600" // Saatlik ortalama
+	default: // 1 aydan fazla
+		avg = "86400" // Günlük ortalama
 	}
-	// Set up API request parameters
+
+	// Debug log için ISO formatında tarih göster
+	backend.Logger.Debug(fmt.Sprintf("Average: %v, Total Hours: %v, Start Date (ISO): %v, End Date (ISO): %v",
+		avg,
+		hours,
+		startTime.Format(time.RFC3339),
+		endTime.Format(time.RFC3339)))
+
 	params := map[string]string{
-		"id":         sensorID,
-		"columns":    "datetime,value_",
-		"avg":        avg,
-		"sdate":      sdate,
-		"edate":      edate,
-		"count":      "50000",
+		"id":      sensorID,
+		"columns": "datetime,value_",
+		"sdate":   sdate,
+		"edate":   edate,
+		"count":   "50000",
+		"avg":     avg,
+		/* "pctshow":    "false",
+		"pctmode":    "false", */
 		"usecaption": "1",
 	}
 
-	// Make API request
 	body, err := a.baseExecuteRequest("historicdata.json", params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch historical data: %w", err)
 	}
 
-	// Parse response
 	var response PrtgHistoricalDataResponse
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	// Validate response
 	if len(response.HistData) == 0 {
 		return nil, fmt.Errorf("no data found for the given time range")
 	}

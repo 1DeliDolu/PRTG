@@ -4,25 +4,25 @@ import { DataQuery } from '@grafana/schema';
 export enum QueryType {
   Metrics = 'metrics',
   Raw = 'raw',
-  Text = 'text'
+  Text = 'text',
+  Selbts = 'selbts'
 }
 
 export interface MyQuery extends DataQuery {
-  group: string;
-  device: string;
-  sensor: string;
-  objid: number | string;
-  channel: string;
   queryType: QueryType;
-  property: string;
-  filterProperty: string;
-  includeGroupName: boolean;
-  includeDeviceName: boolean;
-  includeSensorName: boolean;
-  groups: Array<string>;
-  devices: Array<string>;
-  sensors: Array<string>;
-  channels: Array<string>;
+  group: string;
+  groupId: string;
+  device: string;
+  deviceId: string;
+  sensor: string;
+  sensorId: string;
+  channel: string;
+  channels: string[];
+  property?: string;
+  filterProperty?: string;
+  includeGroupName?: boolean;
+  includeDeviceName?: boolean;
+  includeSensorName?: boolean;
 }
 
 export interface DataPoint {
@@ -131,6 +131,8 @@ export interface PRTGItemChannel {
   datetime: string;
 }
 
+/* ################################### Propert an filter prpoerty ################################################## */
+
 export const filterPropertyList = [
   { name: 'active', visible_name: 'Active' },
   { name: 'message_raw', visible_name: 'Message' },
@@ -160,6 +162,7 @@ export interface PropertyOption {
 }
 
 
+/* ################################################## Query Selbst ################################################### */
 
 
 

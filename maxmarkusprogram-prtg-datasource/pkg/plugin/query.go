@@ -23,114 +23,147 @@ type PRTGAPI interface {
 	// Additional methods like GetTextData, GetPropertyData, etc. can be declared here.
 }
 
-// query processes a single query. If QueryType is "metrics", it creates a time series,
-// otherwise property-based queries are handled by handlePropertyQuery.
-func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
-	_ = ctx  // ! Unused parameter: ctx is intentionally not used.
-	_ = pCtx // ! Unused parameter: pCtx is intentionally not used.
 
-	var response backend.DataResponse
+
+/* ##################################### query ##################################################################### */
+
+func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
 	var qm queryModel
 
 	if err := json.Unmarshal(query.JSON, &qm); err != nil {
-		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("JSON unmarshal error: %v", err))
+		return backend.DataResponse{
+			Frames: []*data.Frame{
+				data.NewFrame(fmt.Sprintf("error_%s", query.RefID)),
+			},
+		}
 	}
+
+	baseFrameName := fmt.Sprintf("query_%s_%s", query.RefID, qm.QueryType)
 
 	switch qm.QueryType {
 	case "metrics":
-		// Metrics handling code
-		fromTime := query.TimeRange.From.UnixMilli()
-		toTime := query.TimeRange.To.UnixMilli()
+		return d.handleMetricsQuery(qm, query.TimeRange, baseFrameName)
+	case "text", "raw":
+		return d.handlePropertyQuery(qm, qm.Property, qm.FilterProperty, baseFrameName)
+	default:
+		return backend.DataResponse{
+			Frames: []*data.Frame{
+				data.NewFrame(fmt.Sprintf("%s_unknown", baseFrameName)),
+			},
+		}
+	}
+}
 
-		historicalData, err := d.api.GetHistoricalData(qm.ObjectId, fromTime, toTime)
-		if err != nil {
-			backend.Logger.Error("API request failed", "error", err)
-			return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("API request failed: %v", err))
+/* ################################################ handleMetricsQuery #########################################################*/
+func (d *Datasource) handleMetricsQuery(qm queryModel, timeRange backend.TimeRange, baseFrameName string) backend.DataResponse {
+	var response backend.DataResponse
+
+	historicalData, err := d.api.GetHistoricalData(qm.SensorId, timeRange.From.UTC(), timeRange.To.UTC())
+	if err != nil {
+		return backend.DataResponse{
+			Frames: []*data.Frame{
+				data.NewFrame(fmt.Sprintf("%s_error", baseFrameName)),
+			},
+		}
+	}
+
+	var channels []string
+	if len(qm.Channels) > 0 {
+		channels = qm.Channels
+	} else if qm.Channel != "" {
+		channels = []string{qm.Channel}
+	}
+
+	for _, channelName := range channels {
+		if channelName == "" {
+			continue
 		}
 
-		// Assumption: historicalData.Treesize contains the value from the JSON ("treesize")
-		times := make([]time.Time, 0)
-		values := make([]float64, 0)
+		timesM := make([]time.Time, 0)
+		valuesM := make([]float64, 0)
 
-		for _, item := range historicalData.HistData {
-			parsedTime, _, err := parsePRTGDateTime(item.Datetime)
-			if err != nil {
-				backend.Logger.Warn("Date parsing failed", "datetime", item.Datetime, "error", err)
-				continue
-			}
-			if val, ok := item.Value[qm.Channel]; ok {
-				switch v := val.(type) {
-				case float64:
-					values = append(values, v)
-				case string:
-					if floatVal, err := strconv.ParseFloat(v, 64); err == nil {
-						values = append(values, floatVal)
-					} else {
-						backend.Logger.Warn("Cannot convert value to float64", "value", v, "error", err)
-						continue
-					}
-				default:
-					backend.Logger.Warn("Unexpected value type", "type", fmt.Sprintf("%T", v), "value", v)
+		if historicalData != nil && len(historicalData.HistData) > 0 {
+			for _, item := range historicalData.HistData {
+				parsedTime, _, err := parsePRTGDateTime(item.Datetime)
+				if err != nil {
 					continue
 				}
-				times = append(times, parsedTime)
-			} else {
-				backend.Logger.Warn("Channel not found in item.Value, using default value", "channel", qm.Channel)
-				times = append(times, parsedTime)
-				values = append(values, 0.0)
+
+				if val, exists := item.Value[channelName]; exists {
+					var floatVal float64
+					switch v := val.(type) {
+					case float64:
+						floatVal = v
+					case string:
+						if parsed, err := strconv.ParseFloat(v, 64); err == nil {
+							floatVal = parsed
+						} else {
+							continue
+						}
+					default:
+						continue
+					}
+
+					timesM = append(timesM, parsedTime)
+					valuesM = append(valuesM, floatVal)
+				}
 			}
 		}
 
-		var parts []string
+		frameName := fmt.Sprintf("%s_%s", baseFrameName, channelName)
+
+		displayName := channelName
 		if qm.IncludeGroupName && qm.Group != "" {
-			parts = append(parts, qm.Group)
+			displayName = fmt.Sprintf("%s - %s", qm.Group, displayName)
 		}
 		if qm.IncludeDeviceName && qm.Device != "" {
-			parts = append(parts, qm.Device)
+			displayName = fmt.Sprintf("%s - %s", qm.Device, displayName)
 		}
 		if qm.IncludeSensorName && qm.Sensor != "" {
-			parts = append(parts, qm.Sensor)
+			displayName = fmt.Sprintf("%s - %s", qm.Sensor, displayName)
 		}
-		parts = append(parts, qm.Channel)
-		displayName := strings.Join(parts, " - ")
 
-		frame := data.NewFrame("response",
-			data.NewField("Time", nil, times),
-			data.NewField("Value", nil, values).SetConfig(&data.FieldConfig{
+		frame := data.NewFrame(frameName,
+			data.NewField("Time", nil, timesM),
+			data.NewField("Value", nil, valuesM).SetConfig(&data.FieldConfig{
 				DisplayName: displayName,
 			}),
 		)
 
 		response.Frames = append(response.Frames, frame)
+	}
 
-	case "text":
-		// Handle text mode by using the non-raw property
-		return d.handlePropertyQuery(qm, qm.FilterProperty)
-
-	case "raw":
-		// Handle raw mode by appending "_raw" to the filter property
-		rawProperty := qm.FilterProperty
-		if !strings.HasSuffix(rawProperty, "_raw") {
-			rawProperty += "_raw"
-		}
-		return d.handlePropertyQuery(qm, rawProperty)
-
-	default:
-		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("Unknown query type: %s", qm.QueryType))
+	if len(response.Frames) == 0 {
+		response.Frames = append(response.Frames, data.NewFrame(fmt.Sprintf("%s_empty", baseFrameName)))
 	}
 
 	return response
 }
 
-// handlePropertyQuery processes a property query based on the queryModel (qm)
-// and a filter property.
-func (d *Datasource) handlePropertyQuery(qm queryModel, filterProperty string) backend.DataResponse {
-	var response backend.DataResponse
-	var times []time.Time
-	var values []interface{}
+/* ################################################ handlePropertyQuery #########################################################*/
+func (d *Datasource) handlePropertyQuery(qm queryModel, property, filterProperty string, baseFrameName string) backend.DataResponse {
+
+	if qm.Property == "" || filterProperty == "" {
+		return backend.DataResponse{
+			Frames: []*data.Frame{
+				data.NewFrame(fmt.Sprintf("%s_missing_properties", baseFrameName)),
+			},
+		}
+	}
+
+	if qm.QueryType == "raw" && !strings.HasSuffix(filterProperty, "_raw") {
+		filterProperty += "_raw"
+	}
+
+	valuesRT := make([]interface{}, 0)
+	timesRT := make([]time.Time, 0)
 
 	if !d.isValidPropertyType(qm.Property) {
-		return backend.ErrDataResponse(backend.StatusBadRequest, "Invalid property type")
+		return backend.DataResponse{
+			Frames: []*data.Frame{
+				data.NewFrame(fmt.Sprintf("%s %s_invalid_property", property, baseFrameName)),
+			},
+		}
 	}
 
 	switch qm.Property {
@@ -147,7 +180,6 @@ func (d *Datasource) handlePropertyQuery(qm queryModel, filterProperty string) b
 					continue
 				}
 
-				// Retrieve the property value based on filterProperty
 				var value interface{}
 				switch filterProperty {
 				case "active":
@@ -173,15 +205,17 @@ func (d *Datasource) handlePropertyQuery(qm queryModel, filterProperty string) b
 				}
 
 				if value != nil {
-					times = append(times, timestamp)
-					values = append(values, value)
+					timesRT = append(timesRT, timestamp.UTC())
+					valuesRT = append(valuesRT, value)
 				}
 			}
 		}
 
 	case "device":
-		// Similar structure for devices
-		devices, err := d.api.GetDevices()
+		if qm.Group == "" {
+			return backend.ErrDataResponse(backend.StatusBadRequest, "group parameter is required for device query")
+		}
+		devices, err := d.api.GetDevices(qm.Group) // Pass the group parameter
 		if err != nil {
 			return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("API request failed: %v", err))
 		}
@@ -217,34 +251,33 @@ func (d *Datasource) handlePropertyQuery(qm queryModel, filterProperty string) b
 				}
 
 				if value != nil {
-					times = append(times, timestamp)
-					values = append(values, value)
+					timesRT = append(timesRT, timestamp)
+					valuesRT = append(valuesRT, value)
 				}
 			}
 		}
 
 	case "sensor":
-		sensors, err := d.api.GetSensors()
+		if qm.Device == "" {
+			return backend.ErrDataResponse(backend.StatusBadRequest, "device parameter is required for sensor query")
+		}
+		sensors, err := d.api.GetSensors(qm.Device) // Pass the device parameter
 		if err != nil {
 			return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("API request failed: %v", err))
 		}
+
 		for _, s := range sensors.Sensors {
 			if s.Sensor == qm.Sensor {
 				timestamp, _, err := parsePRTGDateTime(s.Datetime)
 				if err != nil {
-					backend.Logger.Error("Failed to parse sensor datetime",
-						"sensor", s.Sensor,
-						"datetime", s.Datetime,
-						"error", err)
 					continue
 				}
 
-				// Retrieve the value based on filterProperty
 				var value interface{}
 				switch filterProperty {
 				case "status", "status_raw":
 					if filterProperty == "status_raw" {
-						value = float64(s.StatusRAW) // Convert to float64 for consistent graphing
+						value = float64(s.StatusRAW)
 					} else {
 						value = s.Status
 					}
@@ -275,95 +308,89 @@ func (d *Datasource) handlePropertyQuery(qm queryModel, filterProperty string) b
 				}
 
 				if value != nil {
-					times = append(times, timestamp)
-					values = append(values, value)
+					timesRT = []time.Time{timestamp}
+					valuesRT = []interface{}{value}
+					break
 				}
 			}
 		}
 	}
 
-	// Create a frame with proper field configuration
-	if len(times) > 0 && len(values) > 0 {
-		timeField := data.NewField("Time", nil, times)
+	frameName := fmt.Sprintf("%s_%s_%s", baseFrameName, qm.Property, filterProperty)
+	frame := createPropertyFrame(timesRT, valuesRT, frameName, qm.Property, filterProperty)
 
-		// Determine the type of values and create an appropriate field
-		var valueField *data.Field
-		if len(values) > 0 {
-			switch values[0].(type) {
-			case float64, int:
-				// Convert all values to float64
-				floatVals := make([]float64, len(values))
-				for i, v := range values {
-					switch tv := v.(type) {
-					case float64:
-						floatVals[i] = tv
-					case int:
-						floatVals[i] = float64(tv)
-					}
-				}
-				valueField = data.NewField("Value", nil, floatVals)
-			case string:
-				// Keep string values as they are
-				strVals := make([]string, len(values))
-				for i, v := range values {
-					strVals[i] = v.(string)
-				}
-				valueField = data.NewField("Value", nil, strVals)
-			default:
-				// Convert other types to strings
-				strVals := make([]string, len(values))
-				for i, v := range values {
-					strVals[i] = fmt.Sprintf("%v", v)
-				}
-				valueField = data.NewField("Value", nil, strVals)
-			}
-		}
-
-		// Set display name
-		displayName := fmt.Sprintf("%s - %s (%s)", qm.Property, qm.Sensor, filterProperty)
-		valueField.Config = &data.FieldConfig{
-			DisplayName: displayName,
-		}
-
-		frame := data.NewFrame("response",
-			timeField,
-			valueField,
-		)
-
-		response.Frames = append(response.Frames, frame)
+	return backend.DataResponse{
+		Frames: []*data.Frame{frame},
 	}
-
-	return response
 }
 
-// GetPropertyValue retrieves the property value from an item using reflection.
+/* ####################################### createPropertyFrame ################################################## */
+func createPropertyFrame(times []time.Time, values []interface{}, frameName, property, filterProperty string) *data.Frame {
+	if len(times) == 0 || len(values) == 0 {
+		return data.NewFrame(frameName + "_empty")
+	}
+
+	timeField := data.NewField("Time", nil, times)
+	var valueField *data.Field
+
+	switch values[0].(type) {
+	case float64, int:
+		floatVals := make([]float64, len(values))
+		for i, v := range values {
+			switch tv := v.(type) {
+			case float64:
+				floatVals[i] = tv
+			case int:
+				floatVals[i] = float64(tv)
+			}
+		}
+		valueField = data.NewField("Value", nil, floatVals)
+	case string:
+		strVals := make([]string, len(values))
+		for i, v := range values {
+			strVals[i] = v.(string)
+		}
+		valueField = data.NewField("Value", nil, strVals)
+	default:
+		strVals := make([]string, len(values))
+		for i, v := range values {
+			strVals[i] = fmt.Sprintf("%v", v)
+		}
+		valueField = data.NewField("Value", nil, strVals)
+	}
+
+	displayName := fmt.Sprintf("%s - (%s)", property, filterProperty)
+	valueField.Config = &data.FieldConfig{
+		DisplayName: displayName,
+	}
+
+	return data.NewFrame(frameName, timeField, valueField)
+}
+
+/* ###############################################  GetPropertyValue ################################################################*/
 func (d *Datasource) GetPropertyValue(property string, item interface{}) string {
 	v := reflect.ValueOf(item)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
 
-	// Handle raw property requests
 	isRawRequest := strings.HasSuffix(property, "_raw")
 	baseProperty := strings.TrimSuffix(property, "_raw")
 	fieldName := cases.Title(language.English).String(baseProperty)
-	// First letter to uppercase for matching struct field names
 
-	// Append proper suffix based on request type
 	if isRawRequest {
-		fieldName += "_raw" // Use lowercase suffix as in JSON
+		fieldName += "_raw"
 	}
 
-	// Retrieve the field using the exact field name from JSON
 	field := v.FieldByName(fieldName)
 	if !field.IsValid() {
-		// Try alternative field names if the first attempt fails
+
 		alternatives := []string{
-			baseProperty,               // try lowercase
-			baseProperty + "_raw",      // try lowercase with raw
-			strings.ToLower(fieldName), // try all lowercase
-			strings.ToUpper(fieldName), // try all uppercase
-			baseProperty + "_RAW",      // try uppercase RAW
+			baseProperty,
+			baseProperty + "_raw",
+			strings.ToLower(fieldName),
+			strings.ToUpper(fieldName),
+			baseProperty + "_RAW",
 		}
 
 		for _, alt := range alternatives {
@@ -378,7 +405,6 @@ func (d *Datasource) GetPropertyValue(property string, item interface{}) string 
 		return "Unknown"
 	}
 
-	// Convert the value to a string based on the field's type
 	val := field.Interface()
 	switch v := val.(type) {
 	case int:
@@ -403,7 +429,7 @@ func (d *Datasource) GetPropertyValue(property string, item interface{}) string 
 	}
 }
 
-// cleanMessageHTML is a helper function that removes HTML from a message.
+/* ###################################### cleanMessageHTML ############################################################ */
 func cleanMessageHTML(message string) string {
 	message = strings.ReplaceAll(message, `<div class="status">`, "")
 	message = strings.ReplaceAll(message, `<div class="moreicon">`, "")
@@ -411,10 +437,10 @@ func cleanMessageHTML(message string) string {
 	return strings.TrimSpace(message)
 }
 
-// isValidPropertyType checks if the given property type and name are valid.
+/* ######################################## isValidPropertyType ########################################################## */
 func (d *Datasource) isValidPropertyType(propertyType string) bool {
 	validProperties := []string{
-		"group", "device", "sensor", // object types
+		"group", "device", "sensor",
 		"status", "status_raw",
 		"message", "message_raw",
 		"active", "active_raw",

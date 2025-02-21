@@ -16,8 +16,8 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   //@ts-ignore
   const [sensor, setSensor] = useState<string>('')
   //@ts-ignore
-  const [channel, setChannel] = useState<string>('')
-  const [objid, setObjid] = useState<string>('')
+  const [channel, setChannel] = useState<string[]>([])
+  const [sensorId, setSensorId] = useState<string>('')
 
   const [lists, setLists] = useState({
     groups: [] as Array<SelectableValue<string>>,
@@ -30,6 +30,11 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   })
 
   const [isLoading, setIsLoading] = useState(false)
+//@ts-ignore
+  const [groupId, setGroupId] = useState<string>('')
+//@ts-ignore
+  const [deviceId, setDeviceId] = useState<string>('')
+
 
   /* ############################################## FETCH GROUPS ####################################### */
   useEffect(() => {
@@ -62,7 +67,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     async function fetchDevices() {
       setIsLoading(true)
       try {
-        const response = await datasource.getDevices()
+        const response = await datasource.getDevices(group)
         if (response && Array.isArray(response.devices)) {
           const filteredDevices = group ? response.devices.filter((device) => device.group === group) : response.devices
 
@@ -90,7 +95,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     async function fetchSensors() {
       setIsLoading(true)
       try {
-        const response = await datasource.getSensors()
+        const response = await datasource.getSensors(device)
         if (response && Array.isArray(response.sensors)) {
           const filteredSensors = device
             ? response.sensors.filter((sensor) => sensor.device === device)
@@ -118,13 +123,13 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
 
   useEffect(() => {
     async function fetchChannels() {
-      if (!objid) {
+      if (!sensorId) {
         return
       }
 
       setIsLoading(true)
       try {
-        const response = await datasource.getChannels(objid)
+        const response = await datasource.getChannels(sensorId)
 
         // Check if response is empty
         if (!response) {
@@ -172,10 +177,10 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
       setIsLoading(false)
     }
 
-    if (objid) {
+    if (sensorId) {
       fetchChannels()
     }
-  }, [datasource, objid])
+  }, [datasource, sensorId])
 
   useEffect(() => {
     if (isTextMode || isRawMode) {
@@ -200,6 +205,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   /* ######################################## QUERY  ############################################### */
 
   const onQueryTypeChange = (value: SelectableValue<QueryType>) => {
+    // Mevcut query'nin diğer değerlerini koruyarak sadece tipini değiştir
     onChange({
       ...query,
       queryType: value.value!,
@@ -207,21 +213,57 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     onRunQuery()
   }
 
-  const onGroupChange = (value: SelectableValue<string>) => {
+  const findGroupId = async (groupName: string) => {
+    try {
+      const response = await datasource.getGroups()
+      if (response && Array.isArray(response.groups)) {
+        const group = response.groups.find((g) => g.group === groupName)
+        if (group) {
+          return group.objid.toString()
+        }
+      }
+    } catch (error) {
+      console.error('Error finding group ID:', error)
+    }
+    return ''
+  }
+
+  const findDeviceId = async (deviceName: string) => {
+    try {
+      const response = await datasource.getDevices(group)
+      if (response && Array.isArray(response.devices)) {
+        const device = response.devices.find((d) => d.device === deviceName)
+        if (device) {
+          return device.objid.toString()
+        }
+      }
+    } catch (error) {
+      console.error('Error finding device ID:', error)
+    }
+    return ''
+  }
+
+  const onGroupChange = async (value: SelectableValue<string>) => {
+    const groupObjId = await findGroupId(value.value!)
+    
     onChange({
       ...query,
       group: value.value!,
+      groupId: groupObjId,
       device: '',
+      deviceId: '',
       sensor: '',
+      sensorId: '',
       channel: '',
-      objid: '',
     })
 
     setGroup(value.value!)
+    setGroupId(groupObjId)
     setDevice('')
+    setDeviceId('')
     setSensor('')
-    setChannel('')
-    setObjid('')
+    setSensorId('')
+    setChannel([])
 
     setLists((prev) => ({
       ...prev,
@@ -229,33 +271,42 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
       sensors: [],
       channels: [],
     }))
+    onRunQuery()
   }
 
-  const onDeviceChange = (value: SelectableValue<string>) => {
+  const onDeviceChange = async (value: SelectableValue<string>) => {
+    const deviceObjId = await findDeviceId(value.value!)
+
     onChange({
       ...query,
       device: value.value!,
+      deviceId: deviceObjId,
       sensor: '',
+      sensorId: '',
       channel: '',
     })
+
     setDevice(value.value!)
+    setDeviceId(deviceObjId)
     setSensor('')
-    setChannel('')
+    setSensorId('')
+    setChannel([])
 
     setLists((prev) => ({
       ...prev,
       sensors: [],
       channels: [],
     }))
+    onRunQuery()
   }
 
   const findSensorObjid = async (sensorName: string) => {
     try {
-      const response = await datasource.getSensors()
+      const response = await datasource.getSensors(device)
       if (response && Array.isArray(response.sensors)) {
         const sensor = response.sensors.find((s) => s.sensor === sensorName)
         if (sensor) {
-          setObjid(sensor.objid.toString())
+          setSensorId(sensor.objid.toString())
           return sensor.objid.toString()
         } else {
           console.error('Sensor not found:', sensorName)
@@ -270,30 +321,47 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   }
 
   const onSensorChange = async (value: SelectableValue<string>) => {
-    const sensorObjid = await findSensorObjid(value.value!)
+    const sensorObjId = await findSensorObjid(value.value!)
+
+    if (isMetricsMode) {
+      onChange({
+        ...query,
+        sensor: value.value!,
+        sensorId: sensorObjId,
+        channel: '',
+      })
+      setChannel([])
+    } else {
+      onChange({
+        ...query,
+        sensor: value.value!,
+        sensorId: sensorObjId,
+      })
+    }
+
+    setSensor(value.value!)
+    setSensorId(sensorObjId)
+
+    if (isMetricsMode) {
+      setLists((prev) => ({
+        ...prev,
+        channels: [],
+      }))
+    }
+    onRunQuery()
+  }
+
+  const onChannelChange = (value: SelectableValue<string> | Array<SelectableValue<string>>) => {
+    const selectedChannels = Array.isArray(value) ? value.map(v => v.value || '') : [];
     onChange({
       ...query,
-      sensor: value.value!,
-      objid: sensorObjid,
-      channel: '',
-    })
-    setSensor(value.value!)
-    setObjid(sensorObjid)
-    setChannel('')
+      channels: selectedChannels,
+      channel: selectedChannels[0] || '',
+    });
 
-    setLists((prev) => ({
-      ...prev,
-      channels: [],
-    }))
-
-    onRunQuery()
-  }
-
-  const onChannelChange = (value: SelectableValue<string>) => {
-    onChange({ ...query, channel: value.value! })
-    setChannel(value.value!)
-    onRunQuery()
-  }
+    setChannel(selectedChannels);
+    onRunQuery();
+  };
 
   const onPropertyChange = (value: SelectableValue<string>) => {
     onChange({ ...query, property: value.value! })
@@ -322,9 +390,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
 
   return (
     <Stack direction="column" gap={2}>
-      {/* Erste Zeile: Query- und Sensorfelder */}
       <Stack direction="row" gap={2}>
-        {/* Linke Spalte */}
         <Stack direction="column" gap={1}>
           <InlineField label="Query Type" labelWidth={20} grow>
             <Select
@@ -364,7 +430,6 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
           </InlineField>
         </Stack>
 
-        {/* Rechte Spalte */}
         <Stack direction="column" gap={2}>
           <InlineField label="Sensor" labelWidth={20} grow>
             <Select
@@ -380,91 +445,67 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
             />
           </InlineField>
 
-          {isMetricsMode && (
-            <InlineField label="Channel" labelWidth={20} grow>
-              <Select
-                isLoading={!lists.channels.length}
-                options={lists.channels}
-                value={query.channel}
-                onChange={onChannelChange}
-                width={47}
-                allowCustomValue
-                placeholder="Select Channel or type '*'"
-                isClearable
-                isDisabled={!query.sensor}
-              />
-            </InlineField>
-          )}
+          {/* Channel seçimini sadece metrics modunda göster */}
+          <InlineField label="Channel" labelWidth={20} grow>
+            <Select
+              isLoading={!lists.channels.length}
+              options={lists.channels}
+              value={(query.channels || []).map(c => ({ label: c, value: c })) || []}
+              onChange={onChannelChange}
+              width={47}
+              allowCustomValue
+              placeholder="Select Channel"
+              isClearable
+              isMulti={true}
+              isDisabled={!query.sensor}
+            />
+          </InlineField>
         </Stack>
       </Stack>
+      
+      {/* Metrics modu için options */}
+      {isMetricsMode && (
+        <FieldSet label="Options">
+          <Stack direction="row" gap={1}>
+            <InlineField label="Include Group" labelWidth={16}>
+              <InlineSwitch value={query.includeGroupName || false} onChange={onIncludeGroupName} />
+            </InlineField>
+            <InlineField label="Include Device" labelWidth={15}>
+              <InlineSwitch value={query.includeDeviceName || false} onChange={onIncludeDeviceName} />
+            </InlineField>
+            <InlineField label="Include Sensor" labelWidth={15}>
+              <InlineSwitch value={query.includeSensorName || false} onChange={onIncludeSensorName} />
+            </InlineField>
+          </Stack>
+        </FieldSet>
+      )}
 
-      {/* Zweite Zeile: Options */}
-      <Stack direction="column" gap={1}>
-        {isMetricsMode && (
-          <FieldSet label="Options">
-            <Stack direction="row" gap={1}>
-              <InlineField label="Include Group" labelWidth={16}>
-                <InlineSwitch value={query.includeGroupName || false} onChange={onIncludeGroupName} />
-              </InlineField>
+      {/* Text ve Raw modları için options */}
+      {(isTextMode || isRawMode) && (
+        <FieldSet label="Options">
+          <Stack direction="row" gap={1}>
+            <InlineField label="Property" labelWidth={16}>
+              <Select
+                options={lists.properties}
+                value={query.property}
+                onChange={onPropertyChange}
+                width={32}
+              />
+            </InlineField>
+            <InlineField label="Filter Property" labelWidth={16}>
+              <Select
+                options={lists.filterProperties}
+                value={query.filterProperty}
+                onChange={onFilterPropertyChange}
+                width={32}
+              />
+            </InlineField>
+          </Stack>
+        </FieldSet>
+      )}
+      {/* query selbt burada ben kendim urls getsensordteail vb veriler girip bir tabe panel olusttumak istiyorum . /api/getobjectproperty.htm?id=objectid&name=propertyname&show=text , /api/getsensordetails.xml?id=sensorid ,/api/getstatus.htm?id=0   */}
 
-              <InlineField label="Include Device" labelWidth={15}>
-                <InlineSwitch value={query.includeDeviceName || false} onChange={onIncludeDeviceName} />
-              </InlineField>
-
-              <InlineField label="Include Sensor" labelWidth={15}>
-                <InlineSwitch value={query.includeSensorName || false} onChange={onIncludeSensorName} />
-              </InlineField>
-            </Stack>
-          </FieldSet>
-        )}
-
-        {isTextMode && (
-          <FieldSet label="Options">
-            <Stack direction="row" gap={1}>
-              <InlineField label="Property" labelWidth={16}>
-                <Select
-                  options={lists.properties}
-                  value={query.property}
-                  onChange={onPropertyChange}
-                  width={32}
-                />
-              </InlineField>
-              <InlineField label="Filter Property" labelWidth={16}>
-                <Select
-                  options={lists.filterProperties}
-                  value={query.filterProperty}
-                  onChange={onFilterPropertyChange}
-                  width={32}
-                />
-              </InlineField>
-            </Stack>
-          </FieldSet>
-        )}
-
-        {isRawMode && (
-          <FieldSet label="Options">
-            <Stack direction="row" gap={1}>
-              <InlineField label="Property" labelWidth={16}>
-                <Select
-                  options={lists.properties}
-                  value={query.property}
-                  onChange={onPropertyChange}
-                  width={32}
-                />
-              </InlineField>
-              <InlineField label="Filter Property" labelWidth={16}>
-                <Select
-                  options={lists.filterProperties}
-                  value={query.filterProperty}
-                  onChange={onFilterPropertyChange}
-                  width={32}
-                />
-              </InlineField>
-            </Stack>
-          </FieldSet>
-        )}
-      </Stack>
     </Stack>
-
   )
 }
+

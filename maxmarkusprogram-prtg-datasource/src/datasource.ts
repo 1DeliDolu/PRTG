@@ -30,12 +30,20 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
     return this.getResource('groups')
   }
 
-  async getDevices(): Promise<PRTGDeviceListResponse> {
-    return this.getResource('devices')
+  async getDevices(group: string): Promise<PRTGDeviceListResponse> {
+    if (!group) {
+      throw new Error('group is required')
+    }
+    // Change this line to use path parameter instead of query parameter
+    return this.getResource(`devices/${encodeURIComponent(group)}`)
   }
 
-  async getSensors(): Promise<PRTGSensorListResponse> {
-    return this.getResource('sensors')
+  async getSensors(device: string): Promise<PRTGSensorListResponse> {
+    if (!device) {
+      throw new Error('device is required');
+    }
+    // Change to use path parameter instead of query parameter
+    return this.getResource(`sensors/${encodeURIComponent(device)}`);
   }
 
   async getChannels(objid: string): Promise<PRTGChannelListResponse> {

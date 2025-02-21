@@ -14,7 +14,6 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 )
 
-// Aşağıdaki satırlarla Datasource, gerekli Grafana SDK arayüzlerini implemente ettiğinden emin oluyoruz.
 var (
 	_ backend.QueryDataHandler      = (*Datasource)(nil)
 	_ backend.CheckHealthHandler    = (*Datasource)(nil)
@@ -22,7 +21,7 @@ var (
 	_ backend.CallResourceHandler   = (*Datasource)(nil)
 )
 
-// NewDatasource, plugin ayarlarından verileri çekerek yeni bir datasource örneği oluşturur.
+/*  ################################################# NewDatasource #################################################### */
 func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
 	config, err := models.LoadPluginSettings(settings)
 	if err != nil {
@@ -30,7 +29,6 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 	}
 	baseURL := fmt.Sprintf("https://%s", config.Path)
 
-	// Eğer cache zamanı tanımlı değilse varsayılan 30 saniye kullanılır.
 	cacheTime := config.CacheTime
 	if cacheTime <= 0 {
 		cacheTime = 30 * time.Second
@@ -42,12 +40,12 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 	}, nil
 }
 
-// Dispose, datasource ayarları değiştiğinde çağrılır.
+/*  ########################################### Dispose ################################################### */
 func (d *Datasource) Dispose() {
-	// Gerekirse kaynak temizleme işlemleri yapılabilir.
+
 }
 
-// QueryData, gelen sorguları işler ve sonuçları döner.
+/*  ########################################### QueryData ################################################### */
 func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
 	response := backend.NewQueryDataResponse()
 
@@ -60,20 +58,34 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 	return response, nil
 }
 
-// parsePRTGDateTime parses PRTG datetime strings in various formats
+/* ######################################## parsePRTGDateTime ##############################################################  */
 func parsePRTGDateTime(datetime string) (time.Time, string, error) {
-	// Try different known PRTG date formats
+	// Eğer datetime bir aralık içeriyorsa
+	if strings.Contains(datetime, " - ") {
+		parts := strings.Split(datetime, " - ")
+		if len(parts) == 2 {
+			datePart := strings.Split(parts[0], " ")[0]
+			timePart := strings.TrimSpace(parts[1])
+			datetime = datePart + " " + timePart
+		}
+	}
+
+	backend.Logger.Debug(fmt.Sprintf("Parsing PRTG datetime: %s", datetime))
+
 	layouts := []string{
 		"02.01.2006 15:04:05",
 		time.RFC3339,
+		"2006-01-02 15:04:05",
 	}
 
 	var parseErr error
 	for _, layout := range layouts {
 		parsedTime, err := time.Parse(layout, datetime)
 		if err == nil {
-			unixTime := parsedTime.Unix()
-			return parsedTime, strconv.FormatInt(unixTime, 10), nil
+			// Saati 1 saat geri al
+			adjustedTime := parsedTime.Add(-time.Hour)
+			unixTime := adjustedTime.Unix()
+			return adjustedTime, strconv.FormatInt(unixTime, 10), nil
 		}
 		parseErr = err
 	}
@@ -84,14 +96,10 @@ func parsePRTGDateTime(datetime string) (time.Time, string, error) {
 	return time.Time{}, "", fmt.Errorf("failed to parse time '%s': %w", datetime, parseErr)
 }
 
-// query, tek bir sorguyu işler. Eğer QueryType "metrics" ise zaman serisi oluşturur,
-// aksi halde property bazlı sorgular handlePropertyQuery ile işlenir.
-
-// CheckHealth, plugin konfigürasyonunu kontrol eder.
+/* ######################################## CheckHealth ##############################################################  */
 func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
 	res := &backend.CheckHealthResult{}
 
-	// Load configuration
 	config, err := models.LoadPluginSettings(*req.PluginContext.DataSourceInstanceSettings)
 	if err != nil {
 		res.Status = backend.HealthStatusError
@@ -99,14 +107,12 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		return res, nil
 	}
 
-	// Check API key
 	if config.Secrets.ApiKey == "" {
 		res.Status = backend.HealthStatusError
 		res.Message = "API key is missing"
 		return res, nil
 	}
 
-	// Get PRTG status including version
 	status, err := d.api.GetStatusList()
 	if err != nil {
 		res.Status = backend.HealthStatusError
@@ -114,22 +120,42 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		return res, nil
 	}
 
-	// Return success with version information
 	res.Status = backend.HealthStatusOk
 	res.Message = fmt.Sprintf("Data source is working. PRTG Version: %s", status.Version)
 	return res, nil
 }
 
-// CallResource, URL path'ine göre istekleri ilgili handler'lara yönlendirir.
+/* ######################################## CallResource ##############################################################  */
 func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResourceRequest, sender backend.CallResourceResponseSender) error {
 	pathParts := strings.Split(req.Path, "/")
 	switch pathParts[0] {
 	case "groups":
 		return d.handleGetGroups(sender)
 	case "devices":
-		return d.handleGetDevices(sender)
+		if len(pathParts) < 2 {
+			errorResponse := map[string]string{"error": "group parameter is required"}
+			errorJSON, _ := json.Marshal(errorResponse)
+			return sender.Send(&backend.CallResourceResponse{
+				Status:  http.StatusBadRequest,
+				Headers: map[string][]string{"Content-Type": {"application/json"}},
+				Body:    errorJSON,
+			})
+		}
+		group := pathParts[1]
+		return d.handleGetDevices(sender, group)
 	case "sensors":
-		return d.handleGetSensors(sender)
+		if len(pathParts) < 2 {
+			errorResponse := map[string]string{"error": "device parameter is required"}
+			errorJSON, _ := json.Marshal(errorResponse)
+			return sender.Send(&backend.CallResourceResponse{
+				Status:  http.StatusBadRequest,
+				Headers: map[string][]string{"Content-Type": {"application/json"}},
+				Body:    errorJSON,
+			})
+		}
+		device := pathParts[1]
+		return d.handleGetSensors(sender, device)
+
 	case "channels":
 		if len(pathParts) < 2 {
 			errorResponse := map[string]string{"error": "missing objid parameter"}
@@ -168,14 +194,29 @@ func (d *Datasource) handleGetGroups(sender backend.CallResourceResponseSender) 
 	})
 }
 
-func (d *Datasource) handleGetDevices(sender backend.CallResourceResponseSender) error {
-	devices, err := d.api.GetDevices()
-	if err != nil {
+/* ######################################### handleGetDevices ############################################################*/
+func (d *Datasource) handleGetDevices(sender backend.CallResourceResponseSender, group string) error {
+	if group == "" {
+		errorResponse := map[string]string{"error": "missing group parameter"}
+		errorJSON, _ := json.Marshal(errorResponse)
 		return sender.Send(&backend.CallResourceResponse{
-			Status: http.StatusInternalServerError,
-			Body:   []byte(err.Error()),
+			Status:  http.StatusBadRequest,
+			Headers: map[string][]string{"Content-Type": {"application/json"}},
+			Body:    errorJSON,
 		})
 	}
+
+	devices, err := d.api.GetDevices(group)
+	if err != nil {
+		errorResponse := map[string]string{"error": err.Error()}
+		errorJSON, _ := json.Marshal(errorResponse)
+		return sender.Send(&backend.CallResourceResponse{
+			Status:  http.StatusInternalServerError,
+			Headers: map[string][]string{"Content-Type": {"application/json"}},
+			Body:    errorJSON,
+		})
+	}
+
 	body, err := json.Marshal(devices)
 	if err != nil {
 		return sender.Send(&backend.CallResourceResponse{
@@ -183,6 +224,7 @@ func (d *Datasource) handleGetDevices(sender backend.CallResourceResponseSender)
 			Body:   []byte(fmt.Sprintf("error marshaling devices: %v", err)),
 		})
 	}
+
 	return sender.Send(&backend.CallResourceResponse{
 		Status:  http.StatusOK,
 		Headers: map[string][]string{"Content-Type": {"application/json"}},
@@ -190,14 +232,29 @@ func (d *Datasource) handleGetDevices(sender backend.CallResourceResponseSender)
 	})
 }
 
-func (d *Datasource) handleGetSensors(sender backend.CallResourceResponseSender) error {
-	sensors, err := d.api.GetSensors()
-	if err != nil {
+/* ######################################### handleGetSensors ############################################################*/
+func (d *Datasource) handleGetSensors(sender backend.CallResourceResponseSender, device string) error {
+	if device == "" {
+		errorResponse := map[string]string{"error": "missing device parameter"}
+		errorJSON, _ := json.Marshal(errorResponse)
 		return sender.Send(&backend.CallResourceResponse{
-			Status: http.StatusInternalServerError,
-			Body:   []byte(err.Error()),
+			Status:  http.StatusBadRequest,
+			Headers: map[string][]string{"Content-Type": {"application/json"}},
+			Body:    errorJSON,
 		})
 	}
+
+	sensors, err := d.api.GetSensors(device)
+	if err != nil {
+		errorResponse := map[string]string{"error": err.Error()}
+		errorJSON, _ := json.Marshal(errorResponse)
+		return sender.Send(&backend.CallResourceResponse{
+			Status:  http.StatusInternalServerError,
+			Headers: map[string][]string{"Content-Type": {"application/json"}},
+			Body:    errorJSON,
+		})
+	}
+
 	body, err := json.Marshal(sensors)
 	if err != nil {
 		return sender.Send(&backend.CallResourceResponse{
@@ -205,6 +262,7 @@ func (d *Datasource) handleGetSensors(sender backend.CallResourceResponseSender)
 			Body:   []byte(fmt.Sprintf("error marshaling sensors: %v", err)),
 		})
 	}
+
 	return sender.Send(&backend.CallResourceResponse{
 		Status:  http.StatusOK,
 		Headers: map[string][]string{"Content-Type": {"application/json"}},
@@ -212,6 +270,7 @@ func (d *Datasource) handleGetSensors(sender backend.CallResourceResponseSender)
 	})
 }
 
+/*  ########################################  handleGetChannel ########################################  */
 func (d *Datasource) handleGetChannel(sender backend.CallResourceResponseSender, objid string) error {
 	if objid == "" {
 		errorResponse := map[string]string{"error": "missing objid parameter"}
@@ -247,5 +306,5 @@ func (d *Datasource) handleGetChannel(sender backend.CallResourceResponseSender,
 		Headers: map[string][]string{"Content-Type": {"application/json"}},
 		Body:    body,
 	})
-	// 14.02.2025 13:49:00
+
 }
