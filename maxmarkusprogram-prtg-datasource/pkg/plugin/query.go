@@ -42,7 +42,6 @@ func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, quer
 
 	switch qm.QueryType {
 	case "metrics":
-<<<<<<< HEAD
 		return d.handleMetricsQuery(qm, query.TimeRange, baseFrameName)
 	case "text", "raw":
 		return d.handlePropertyQuery(qm, qm.Property, qm.FilterProperty, baseFrameName)
@@ -54,10 +53,6 @@ func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, quer
 		}
 	}
 }
-=======
-		fromTime := query.TimeRange.From.UTC()
-		toTime := query.TimeRange.To.UTC()
->>>>>>> b7ec34b15515724822d7961b43e74d64b1be22b5
 
 /* ################################################ handleMetricsQuery #########################################################*/
 func (d *Datasource) handleMetricsQuery(qm queryModel, timeRange backend.TimeRange, baseFrameName string) backend.DataResponse {
@@ -84,7 +79,6 @@ func (d *Datasource) handleMetricsQuery(qm queryModel, timeRange backend.TimeRan
 			continue
 		}
 
-<<<<<<< HEAD
 		timesM := make([]time.Time, 0)
 		valuesM := make([]float64, 0)
 
@@ -92,40 +86,10 @@ func (d *Datasource) handleMetricsQuery(qm queryModel, timeRange backend.TimeRan
 			for _, item := range historicalData.HistData {
 				parsedTime, _, err := parsePRTGDateTime(item.Datetime)
 				if err != nil {
-=======
-		// Çoklu kanal desteği için channels listesini hazırla
-		var channels []string
-		if len(qm.Channels) > 0 {
-			channels = qm.Channels // Öncelikle çoklu seçilen kanalları kullan
-		} else if qm.Channel != "" {
-			channels = []string{qm.Channel} // Geriye dönük uyumluluk için tek kanalı kullan
-		}
-
-		backend.Logger.Debug("Processing channels", "count", len(channels), "channels", channels)
-
-		// Her kanal için ayrı bir frame oluştur
-		for _, channelName := range channels {
-			if channelName == "" {
-				continue
-			}
-
-			times := make([]time.Time, 0, len(historicalData.HistData))
-			values := make([]float64, 0, len(historicalData.HistData))
-
-			// Kanal verilerini topla
-			for _, item := range historicalData.HistData {
-				parsedTime, _, err := parsePRTGDateTime(item.Datetime)
-				if err != nil {
-					backend.Logger.Warn("Time parsing failed",
-						"channel", channelName,
-						"datetime", item.Datetime,
-						"error", err)
->>>>>>> b7ec34b15515724822d7961b43e74d64b1be22b5
 					continue
 				}
 
 				if val, exists := item.Value[channelName]; exists {
-<<<<<<< HEAD
 					var floatVal float64
 					switch v := val.(type) {
 					case float64:
@@ -142,28 +106,6 @@ func (d *Datasource) handleMetricsQuery(qm queryModel, timeRange backend.TimeRan
 
 					timesM = append(timesM, parsedTime)
 					valuesM = append(valuesM, floatVal)
-=======
-					switch v := val.(type) {
-					case float64:
-						values = append(values, v)
-					case string:
-						if floatVal, err := strconv.ParseFloat(v, 64); err == nil {
-							values = append(values, floatVal)
-						} else {
-							backend.Logger.Warn("Value conversion failed",
-								"channel", channelName,
-								"value", v,
-								"error", err)
-							continue
-						}
-					default:
-						backend.Logger.Warn("Unexpected value type",
-							"channel", channelName,
-							"type", fmt.Sprintf("%T", v))
-						continue
-					}
-					times = append(times, parsedTime)
->>>>>>> b7ec34b15515724822d7961b43e74d64b1be22b5
 				}
 			}
 
@@ -181,8 +123,8 @@ func (d *Datasource) handleMetricsQuery(qm queryModel, timeRange backend.TimeRan
 
 			// Kanal için frame oluştur
 			frame := data.NewFrame(fmt.Sprintf("response_%s", channelName),
-				data.NewField("Time", nil, times),
-				data.NewField("Value", nil, values).SetConfig(&data.FieldConfig{
+				data.NewField("Time", nil, timesM),
+				data.NewField("Value", nil, valuesM).SetConfig(&data.FieldConfig{
 					DisplayName: displayName,
 				}),
 			)
@@ -190,7 +132,6 @@ func (d *Datasource) handleMetricsQuery(qm queryModel, timeRange backend.TimeRan
 			response.Frames = append(response.Frames, frame)
 		}
 
-<<<<<<< HEAD
 		frameName := fmt.Sprintf("%s_%s", baseFrameName, channelName)
 
 		displayName := channelName
@@ -213,13 +154,11 @@ func (d *Datasource) handleMetricsQuery(qm queryModel, timeRange backend.TimeRan
 
 		response.Frames = append(response.Frames, frame)
 	}
-=======
-		return response
->>>>>>> b7ec34b15515724822d7961b43e74d64b1be22b5
 
 	if len(response.Frames) == 0 {
 		response.Frames = append(response.Frames, data.NewFrame(fmt.Sprintf("%s_empty", baseFrameName)))
 	}
+	return response
 }
 
 /* ################################################ handlePropertyQuery #########################################################*/
