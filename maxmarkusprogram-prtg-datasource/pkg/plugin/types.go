@@ -2,19 +2,16 @@ package plugin
 
 import (
 	"encoding/json"
-	"time"
 	"sync"
+	"time"
 )
 
-
-/* ############################# GROUP LIST RESPONSE #################################### */
-
+/* =================================== GROUP LIST RESPONSE ======================================== */
 type PrtgGroupListResponse struct {
 	PrtgVersion string                    `json:"prtg-version" xml:"prtg-version"`
 	TreeSize    int64                     `json:"treesize" xml:"treesize"`
 	Groups      []PrtgGroupListItemStruct `json:"groups" xml:"groups"`
 }
-
 
 type PrtgGroupListItemStruct struct {
 	Active         bool    `json:"active" xml:"active"`
@@ -53,15 +50,12 @@ type PrtgGroupListItemStruct struct {
 	WarnsensRAW    int     `json:"warnsens_raw" xml:"warnsens_raw"`
 }
 
-/* ############################# DEVICE LIST RESPONSE #################################### */
-
-
+/* =================================== DEVICE LIST RESPONSE ====================================== */
 type PrtgDevicesListResponse struct {
 	PrtgVersion string                     `json:"prtg-version" xml:"prtg-version"`
 	TreeSize    int64                      `json:"treesize" xml:"treesize"`
 	Devices     []PrtgDeviceListItemStruct `json:"devices" xml:"devices"`
 }
-
 
 type PrtgDeviceListItemStruct struct {
 	Active         bool    `json:"active" xml:"active"`
@@ -100,15 +94,12 @@ type PrtgDeviceListItemStruct struct {
 	WarnsensRAW    int     `json:"warnsens_raw" xml:"warnsens_raw"`
 }
 
-/* ############################# SENSOR LIST RESPONSE #################################### */
-
-
+/* =================================== SENSOR LIST RESPONSE ===================================== */
 type PrtgSensorsListResponse struct {
 	PrtgVersion string                     `json:"prtg-version" xml:"prtg-version"`
 	TreeSize    int64                      `json:"treesize" xml:"treesize"`
 	Sensors     []PrtgSensorListItemStruct `json:"sensors" xml:"sensors"`
 }
-
 
 type PrtgSensorListItemStruct struct {
 	Active         bool    `json:"active" xml:"active"`
@@ -147,9 +138,7 @@ type PrtgSensorListItemStruct struct {
 	WarnsensRAW    int     `json:"warnsens_raw" xml:"warnsens_raw"`
 }
 
-/* ############################# STATUS LIST RESPONSE #################################### */
-
-
+/* =================================== STATUS LIST RESPONSE ===================================== */
 type PrtgStatusListResponse struct {
 	PrtgVersion          string `json:"prtgversion" xml:"prtg-version"`
 	AckAlarms            string `json:"ackalarms" xml:"ackalarms"`
@@ -163,7 +152,7 @@ type PrtgStatusListResponse struct {
 	CorrelationTasks     string `json:"correlationtasks" xml:"correlationtasks"`
 	DaysInstalled        int    `json:"daysinstalled" xml:"daysinstalled"`
 	EditionType          string `json:"editiontype" xml:"editiontype"`
-	Favs                 int    `json:"favs" xml:"favs"`
+	Favs                 int    `json:"favs"`
 	JsClock              int64  `json:"jsclock" xml:"jsclock"`
 	LowMem               bool   `json:"lowmem" xml:"lowmem"`
 	MaintExpiryDays      string `json:"maintexpirydays" xml:"maintexpirydays"`
@@ -186,33 +175,26 @@ type PrtgStatusListResponse struct {
 	WarnSens             string `json:"warnsens"`
 }
 
-/* ############################# CHANNEL LIST RESPONSE #################################### */
-
-
+/* =================================== CHANNEL LIST RESPONSE ==================================== */
 type PrtgChannelsListResponse struct {
 	PrtgVersion string                   `json:"prtg-version" xml:"prtg-version"`
 	TreeSize    int64                    `json:"treesize" xml:"treesize"`
 	Values      []PrtgChannelValueStruct `json:"values" xml:"values"`
 }
 
-
 type PrtgChannelValueStruct map[string]interface{}
 
-/* ############################# CHANNEL VALUE RESPONSE #################################### */
-
-
+/* =================================== CHANNEL VALUE RESPONSE =================================== */
 type PrtgHistoricalDataResponse struct {
 	PrtgVersion string       `json:"prtg-version" xml:"prtg-version"`
 	TreeSize    int64        `json:"treesize" xml:"treesize"`
 	HistData    []PrtgValues `json:"histdata" xml:"histdata"`
 }
 
-
 type PrtgValues struct {
 	Datetime string                 `json:"datetime"`
 	Value    map[string]interface{} `json:"-"`
 }
-
 
 func (p *PrtgValues) UnmarshalJSON(data []byte) error {
 	var raw map[string]interface{}
@@ -227,15 +209,14 @@ func (p *PrtgValues) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-/* ##################################### QUERY MODEL #################################### */
-
-
+/* =================================== QUERY MODEL ============================================== */
 type Datasource struct {
 	baseURL string
 	api     *Api
+	logger  PrtgLogger 
+	tracer  *Tracer
+	metrics *Metrics
 }
-
-
 
 type Group struct {
 	Group string `json:"group"`
@@ -249,11 +230,10 @@ type Sensor struct {
 	Sensor string `json:"sensor"`
 }
 
-
 type queryModel struct {
 	QueryType         string   `json:"queryType"`
 	SensorId          string   `json:"sensorId"`
-	DeviceId		  string   `json:"deviceId"`
+	DeviceId          string   `json:"deviceId"`
 	GroupId           string   `json:"groupId"`
 	Group             string   `json:"group"`
 	Device            string   `json:"device"`
@@ -267,20 +247,20 @@ type queryModel struct {
 	Channels          []string `json:"channels,omitempty"`
 	From              int64    `json:"from"`
 	To                int64    `json:"to"`
+	ManualMethod      string   `json:"manualMethod"`
+	ManualObjectId    string   `json:"manualObjectId"`
 }
 
-// MyDatasource kann für weitere interne Zwecke verwendet werden.
+/* =================================== DATASOURCE ============================================== */
 type MyDatasource struct{}
 
-// 14.02.2025 13:49:00
-
-/*  ############################################### cacheItem #########################################################*/
+/* =================================== CACHE ITEM ============================================== */
 type cacheItem struct {
 	data   []byte
 	expiry time.Time
 }
 
-/*  ############################################## Api ################################################################# */
+/* =================================== API ==================================================== */
 type Api struct {
 	baseURL   string
 	apiKey    string
@@ -288,4 +268,15 @@ type Api struct {
 	cacheTime time.Duration
 	cache     map[string]cacheItem
 	cacheMu   sync.RWMutex
+}
+
+/* =================================== MANUAL STRUCT =========================================== */
+type ManualResponse struct {
+	Manuel    map[string]interface{} `json:"raw"`
+	KeyValues []KeyValue             `json:"keyValues"`
+}
+
+type KeyValue struct {
+	Key   string      `json:"key"`
+	Value interface{} `json:"value"`
 }

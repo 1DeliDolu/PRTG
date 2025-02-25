@@ -15,56 +15,128 @@ import (
 	"golang.org/x/text/language"
 )
 
-// PRTGAPI defines the interface for API operations.
+/* =================================== DATASOURCE INTERFACE ==================================== */
 type PRTGAPI interface {
 	GetGroups() (*PrtgGroupListResponse, error)
 	GetDevices() (*PrtgDevicesListResponse, error)
 	GetSensors() (*PrtgSensorsListResponse, error)
-	// Additional methods like GetTextData, GetPropertyData, etc. can be declared here.
 }
 
-
-
-/* ##################################### query ##################################################################### */
-
+/* =================================== QUERY HANDLER ========================================== */
 func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
-	var qm queryModel
+	// Start tracing
+	ctx, span := d.tracer.StartSpan(ctx, "query")
+	defer span.End()
+	backend.Logger.Info("PluginContext", "pCtx", pCtx)
 
+	// Start timing and initial logging
+	start := time.Now()
+	d.logger.Info("Starting query execution",
+		"queryType", query.QueryType,
+		"refID", query.RefID,
+		"timeRange", fmt.Sprintf("%v to %v", query.TimeRange.From, query.TimeRange.To),
+	)
+
+	// Parse query model
+	var qm queryModel
 	if err := json.Unmarshal(query.JSON, &qm); err != nil {
-		return backend.DataResponse{
-			Frames: []*data.Frame{
-				data.NewFrame(fmt.Sprintf("error_%s", query.RefID)),
-			},
-		}
+		d.logger.Error("Query parsing failed",
+			"error", err,
+			"raw_query", string(query.JSON),
+		)
+		d.metrics.IncError("query_parse_error")
+		recordError(span, err, "Failed to parse query")
+		return backend.ErrDataResponse(backend.StatusBadRequest, "failed to parse query")
 	}
 
-	baseFrameName := fmt.Sprintf("query_%s_%s", query.RefID, qm.QueryType)
+	// Add query attributes to span
+	addQueryAttributes(span, qm)
 
+	// Defer metrics and logging
+	defer func() {
+		duration := time.Since(start).Seconds()
+		d.metrics.ObserveQueryDuration(qm.QueryType, duration)
+		d.logger.Info("Query completed",
+			"duration", duration,
+			"queryType", qm.QueryType,
+			"refID", query.RefID,
+		)
+	}()
+
+	// Execute query based on type
+	var response backend.DataResponse
 	switch qm.QueryType {
 	case "metrics":
-		return d.handleMetricsQuery(qm, query.TimeRange, baseFrameName)
+		if qm.Channel == "" && len(qm.Channels) == 0 {
+			d.logger.Error("Channel selection required for metrics query")
+			d.metrics.IncError("missing_channel")
+			return backend.ErrDataResponse(backend.StatusBadRequest, "channel selection required")
+		}
+		response = d.handleMetricsQuery(ctx, qm, query.TimeRange, fmt.Sprintf("metrics_%s", query.RefID))
+
+	case "manual":
+		d.logger.Debug("Executing manual query",
+			"method", qm.ManualMethod,
+			"objectId", qm.ManualObjectId,
+		)
+		response = d.handleManualQuery(qm, query.TimeRange, fmt.Sprintf("manual_%s", query.RefID))
+
 	case "text", "raw":
-		return d.handlePropertyQuery(qm, qm.Property, qm.FilterProperty, baseFrameName)
+		response = d.handlePropertyQuery(ctx, qm, qm.Property, qm.FilterProperty, fmt.Sprintf("property_%s", query.RefID))
+
 	default:
+		d.logger.Warn("Unknown query type",
+			"type", qm.QueryType,
+			"refID", query.RefID,
+		)
+		d.metrics.IncError("unknown_query_type")
 		return backend.DataResponse{
 			Frames: []*data.Frame{
-				data.NewFrame(fmt.Sprintf("%s_unknown", baseFrameName)),
+				data.NewFrame(fmt.Sprintf("unknown_%s", query.RefID)),
 			},
 		}
 	}
+
+	// Record any errors in the response
+	if response.Error != nil {
+		d.logger.Error("Query execution failed",
+			"error", response.Error,
+			"queryType", qm.QueryType,
+			"refID", query.RefID,
+		)
+		d.metrics.IncError("query_execution")
+		recordError(span, response.Error, "Query execution failed")
+	}
+
+	return response
 }
 
-/* ################################################ handleMetricsQuery #########################################################*/
-func (d *Datasource) handleMetricsQuery(qm queryModel, timeRange backend.TimeRange, baseFrameName string) backend.DataResponse {
-	var response backend.DataResponse
+/* =================================== METRICS HANDLER ======================================== */
+func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, timeRange backend.TimeRange, baseFrameName string) backend.DataResponse {
+	ctx, span := d.tracer.StartSpan(ctx, "handleMetricsQuery")
+	backend.Logger.Info("Context", "ctx", ctx)	
+	defer span.End()
+
+	queryStart := time.Now()
+	d.logger.Debug("Fetching historical data",
+		"sensorId", qm.SensorId,
+		"timeRange", fmt.Sprintf("%v to %v", timeRange.From, timeRange.To),
+	)
+
+	// Initialize response
+	response := backend.DataResponse{
+		Frames: make([]*data.Frame, 0),
+	}
 
 	historicalData, err := d.api.GetHistoricalData(qm.SensorId, timeRange.From.UTC(), timeRange.To.UTC())
 	if err != nil {
-		return backend.DataResponse{
-			Frames: []*data.Frame{
-				data.NewFrame(fmt.Sprintf("%s_error", baseFrameName)),
-			},
-		}
+		d.logger.Error("Failed to fetch historical data",
+			"error", err,
+			"sensorId", qm.SensorId,
+		)
+		d.metrics.IncError("historical_data_fetch")
+		recordError(span, err, "Failed to fetch historical data")
+		return backend.ErrDataResponse(backend.StatusInternal, "failed to fetch data")
 	}
 
 	var channels []string
@@ -108,28 +180,6 @@ func (d *Datasource) handleMetricsQuery(qm queryModel, timeRange backend.TimeRan
 					valuesM = append(valuesM, floatVal)
 				}
 			}
-
-			// Kanal için display name oluştur
-			displayName := channelName
-			if qm.IncludeGroupName && qm.Group != "" {
-				displayName = fmt.Sprintf("%s - %s", qm.Group, displayName)
-			}
-			if qm.IncludeDeviceName && qm.Device != "" {
-				displayName = fmt.Sprintf("%s - %s", qm.Device, displayName)
-			}
-			if qm.IncludeSensorName && qm.Sensor != "" {
-				displayName = fmt.Sprintf("%s - %s", qm.Sensor, displayName)
-			}
-
-			// Kanal için frame oluştur
-			frame := data.NewFrame(fmt.Sprintf("response_%s", channelName),
-				data.NewField("Time", nil, timesM),
-				data.NewField("Value", nil, valuesM).SetConfig(&data.FieldConfig{
-					DisplayName: displayName,
-				}),
-			)
-
-			response.Frames = append(response.Frames, frame)
 		}
 
 		frameName := fmt.Sprintf("%s_%s", baseFrameName, channelName)
@@ -158,36 +208,98 @@ func (d *Datasource) handleMetricsQuery(qm queryModel, timeRange backend.TimeRan
 	if len(response.Frames) == 0 {
 		response.Frames = append(response.Frames, data.NewFrame(fmt.Sprintf("%s_empty", baseFrameName)))
 	}
+
+	duration := time.Since(queryStart)
+	d.metrics.ObserveAPILatency("historical_data", duration.Seconds())
+
 	return response
 }
 
-/* ################################################ handlePropertyQuery #########################################################*/
-func (d *Datasource) handlePropertyQuery(qm queryModel, property, filterProperty string, baseFrameName string) backend.DataResponse {
+/* =================================== MANUAL QUERY HANDLER =================================== */
+func (d *Datasource) handleManualQuery(qm queryModel, timeRange backend.TimeRange, frameBaseName string) backend.DataResponse {
+	d.logger.Debug("Processing manual query",
+		"method", qm.ManualMethod,
+		"objectId", qm.ManualObjectId,
+		"timeRange", fmt.Sprintf("%v to %v", timeRange.From, timeRange.To),
+	)
 
-	if qm.Property == "" || filterProperty == "" {
-		return backend.DataResponse{
-			Frames: []*data.Frame{
-				data.NewFrame(fmt.Sprintf("%s_missing_properties", baseFrameName)),
-			},
+	if qm.ManualMethod == "" {
+		d.logger.Error("Manual method is required")
+		d.metrics.IncError("missing_manual_method")
+		return backend.ErrDataResponse(backend.StatusBadRequest, "manual method is required")
+	}
+
+	response, err := d.api.ExecuteManualMethod(qm.ManualMethod, qm.ManualObjectId)
+	if err != nil {
+		d.logger.Error("Manual query failed",
+			"error", err,
+			"method", qm.ManualMethod,
+		)
+		d.metrics.IncError("manual_query_failed")
+		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("API request failed: %v", err))
+	}
+
+	keys := make([]string, len(response.KeyValues))
+	values := make([]string, len(response.KeyValues))
+
+	for i, kv := range response.KeyValues {
+		keys[i] = kv.Key
+		switch v := kv.Value.(type) {
+		case string:
+			values[i] = v
+		case float64:
+			values[i] = strconv.FormatFloat(v, 'f', -1, 64)
+		case bool:
+			values[i] = strconv.FormatBool(v)
+		case nil:
+			values[i] = "null"
+		default:
+			values[i] = fmt.Sprintf("%v", v)
 		}
 	}
 
-	if qm.QueryType == "raw" && !strings.HasSuffix(filterProperty, "_raw") {
+	frame := data.NewFrame(frameBaseName,
+		data.NewField("Key", nil, keys).SetConfig(&data.FieldConfig{
+			DisplayName: "Property",
+		}),
+		data.NewField("Value", nil, values).SetConfig(&data.FieldConfig{
+			DisplayName: "Value",
+		}),
+	).SetMeta(&data.FrameMeta{
+		Type:   data.FrameTypeTimeSeriesWide,
+		Custom: response.Manuel,
+	})
+
+	return backend.DataResponse{
+		Frames: []*data.Frame{frame},
+	}
+}
+
+/* =================================== PROPERTY HANDLER ======================================= */
+func (d *Datasource) handlePropertyQuery(ctx context.Context, qm queryModel, property, filterProperty string, baseFrameName string) backend.DataResponse {
+	ctx, span := d.tracer.StartSpan(ctx, "handlePropertyQuery")
+	backend.Logger.Info("Context", "ctx", ctx)
+	defer span.End()
+
+	d.logger.Debug("Processing property query",
+		"property", property,
+		"filterProperty", filterProperty,
+	)
+
+	// Raw mod kontrolü
+	isRawMode := qm.QueryType == "raw"
+	if isRawMode && !strings.HasSuffix(filterProperty, "_raw") {
 		filterProperty += "_raw"
+		d.logger.Debug("Converting to raw property",
+			"original", property,
+			"rawProperty", filterProperty,
+		)
 	}
 
-	valuesRT := make([]interface{}, 0)
-	timesRT := make([]time.Time, 0)
+	var timesRT []time.Time
+	var valuesRT []interface{}
 
-	if !d.isValidPropertyType(qm.Property) {
-		return backend.DataResponse{
-			Frames: []*data.Frame{
-				data.NewFrame(fmt.Sprintf("%s %s_invalid_property", property, baseFrameName)),
-			},
-		}
-	}
-
-	switch qm.Property {
+	switch property {
 	case "group":
 		groups, err := d.api.GetGroups()
 		if err != nil {
@@ -197,32 +309,21 @@ func (d *Datasource) handlePropertyQuery(qm queryModel, property, filterProperty
 			if g.Group == qm.Group {
 				timestamp, _, err := parsePRTGDateTime(g.Datetime)
 				if err != nil {
-					backend.Logger.Warn("Date parsing failed", "datetime", g.Datetime, "error", err)
 					continue
 				}
 
 				var value interface{}
 				switch filterProperty {
-				case "active":
-					value = g.Active
-				case "active_raw":
-					value = g.ActiveRAW
-				case "message":
-					value = cleanMessageHTML(g.Message)
-				case "message_raw":
-					value = g.MessageRAW
-				case "priority":
-					value = g.Priority
-				case "priority_raw":
-					value = g.PriorityRAW
-				case "status":
-					value = g.Status
-				case "status_raw":
-					value = g.StatusRAW
-				case "tags":
-					value = g.Tags
-				case "tags_raw":
-					value = g.TagsRAW
+				case "active", "active_raw":
+					value = selectRawOrFormatted(isRawMode, g.ActiveRAW, g.Active)
+				case "message", "message_raw":
+					value = selectRawOrFormatted(isRawMode, g.MessageRAW, cleanMessageHTML(g.Message))
+				case "priority", "priority_raw":
+					value = selectRawOrFormatted(isRawMode, g.PriorityRAW, g.Priority)
+				case "status", "status_raw":
+					value = selectRawOrFormatted(isRawMode, g.StatusRAW, g.Status)
+				case "tags", "tags_raw":
+					value = selectRawOrFormatted(isRawMode, g.TagsRAW, g.Tags)
 				}
 
 				if value != nil {
@@ -231,12 +332,11 @@ func (d *Datasource) handlePropertyQuery(qm queryModel, property, filterProperty
 				}
 			}
 		}
-
 	case "device":
 		if qm.Group == "" {
 			return backend.ErrDataResponse(backend.StatusBadRequest, "group parameter is required for device query")
 		}
-		devices, err := d.api.GetDevices(qm.Group) // Pass the group parameter
+		devices, err := d.api.GetDevices(qm.Group)
 		if err != nil {
 			return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("API request failed: %v", err))
 		}
@@ -282,7 +382,7 @@ func (d *Datasource) handlePropertyQuery(qm queryModel, property, filterProperty
 		if qm.Device == "" {
 			return backend.ErrDataResponse(backend.StatusBadRequest, "device parameter is required for sensor query")
 		}
-		sensors, err := d.api.GetSensors(qm.Device) // Pass the device parameter
+		sensors, err := d.api.GetSensors(qm.Device)
 		if err != nil {
 			return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("API request failed: %v", err))
 		}
@@ -345,7 +445,7 @@ func (d *Datasource) handlePropertyQuery(qm queryModel, property, filterProperty
 	}
 }
 
-/* ####################################### createPropertyFrame ################################################## */
+/* =================================== FRAME CREATOR ========================================== */
 func createPropertyFrame(times []time.Time, values []interface{}, frameName, property, filterProperty string) *data.Frame {
 	if len(times) == 0 || len(values) == 0 {
 		return data.NewFrame(frameName + "_empty")
@@ -450,7 +550,7 @@ func (d *Datasource) GetPropertyValue(property string, item interface{}) string 
 	}
 }
 
-/* ###################################### cleanMessageHTML ############################################################ */
+/* ====================================== CLEAN MESSAGES HTML ====================================== */
 func cleanMessageHTML(message string) string {
 	message = strings.ReplaceAll(message, `<div class="status">`, "")
 	message = strings.ReplaceAll(message, `<div class="moreicon">`, "")
@@ -458,22 +558,12 @@ func cleanMessageHTML(message string) string {
 	return strings.TrimSpace(message)
 }
 
-/* ######################################## isValidPropertyType ########################################################## */
-func (d *Datasource) isValidPropertyType(propertyType string) bool {
-	validProperties := []string{
-		"group", "device", "sensor",
-		"status", "status_raw",
-		"message", "message_raw",
-		"active", "active_raw",
-		"priority", "priority_raw",
-		"tags", "tags_raw",
-	}
 
-	propertyType = strings.ToLower(propertyType)
-	for _, valid := range validProperties {
-		if propertyType == valid {
-			return true
-		}
+
+// Helper function to select between raw and formatted values
+func selectRawOrFormatted(isRaw bool, rawValue, formattedValue interface{}) interface{} {
+	if isRaw {
+		return rawValue
 	}
-	return false
+	return formattedValue
 }

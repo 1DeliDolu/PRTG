@@ -1,4 +1,4 @@
-import { AnnotationQuery, AnnotationSupport, DataSourceInstanceSettings, ScopedVars } from '@grafana/data'
+import { DataSourceInstanceSettings, ScopedVars } from '@grafana/data'
 import { DataSourceWithBackend, getTemplateSrv } from '@grafana/runtime'
 import {
   MyQuery,
@@ -11,9 +11,14 @@ import {
 
 export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptions> {
   constructor(instanceSettings: DataSourceInstanceSettings<MyDataSourceOptions>) {
-    super(instanceSettings)
+    super(instanceSettings);
+    this.annotations = {
+      QueryEditor: null, 
+      processEvents: null, 
+    };
   }
 
+  /* =================================== APPLYTEMPLATEVARIABLES ====================================== */
   applyTemplateVariables(query: MyQuery, scopedVars: ScopedVars) {
     return {
       ...query,
@@ -22,10 +27,10 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
   }
 
   filterQuery(query: MyQuery): boolean {
-    // if no query has been provided, prevent the query from being executed
     return !!query.channel
   }
 
+  /* =================================== GETRESOURCE ====================================== */
   async getGroups(): Promise<PRTGGroupListResponse> {
     return this.getResource('groups')
   }
@@ -34,7 +39,6 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
     if (!group) {
       throw new Error('group is required')
     }
-    // Change this line to use path parameter instead of query parameter
     return this.getResource(`devices/${encodeURIComponent(group)}`)
   }
 
@@ -42,18 +46,17 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
     if (!device) {
       throw new Error('device is required');
     }
-    // Change to use path parameter instead of query parameter
     return this.getResource(`sensors/${encodeURIComponent(device)}`);
   }
 
-  async getChannels(objid: string): Promise<PRTGChannelListResponse> {
-    if (!objid) {
-      throw new Error('objid is required')
+  async getChannels(sensorId: string): Promise<PRTGChannelListResponse> {
+    if (!sensorId) {
+      throw new Error('sensorId is required')
     }
-    return this.getResource(`channels/${objid}`)
+    return this.getResource(`channels/${encodeURIComponent(sensorId)}`)
   }
 
-  
-
-  annotations?: AnnotationSupport<MyQuery, AnnotationQuery<MyQuery>> | undefined
+  /* =================================== ANNOTATIONS ====================================== */
+  annotations: {
+  }
 }

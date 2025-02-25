@@ -1,23 +1,30 @@
 import React, { useEffect, useState } from 'react'
-import { InlineField, Select, Stack, FieldSet, InlineSwitch } from '@grafana/ui'
+import { InlineField, Select, Stack, FieldSet, InlineSwitch, Input } from '@grafana/ui'
 import { QueryEditorProps, SelectableValue } from '@grafana/data'
 import { DataSource } from '../datasource'
-import { MyDataSourceOptions, MyQuery, queryTypeOptions, QueryType, propertyList, filterPropertyList } from '../types'
+import { MyDataSourceOptions, MyQuery, queryTypeOptions, QueryType, propertyList, filterPropertyList, manualApiMethods } from '../types'
 
 type Props = QueryEditorProps<DataSource, MyQuery, MyDataSourceOptions>
 
 export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) {
+
+
   const isMetricsMode = query.queryType === QueryType.Metrics
   const isRawMode = query.queryType === QueryType.Raw
   const isTextMode = query.queryType === QueryType.Text
+  const isManualMode = query.queryType === QueryType.Manual
 
-  const [group, setGroup] = useState<string>('')
-  const [device, setDevice] = useState<string>('')
+  /* ===================================================== HOOKS ============================================================*/
+  const [group, setGroup] = useState<string>(query.group || '')
+  const [device, setDevice] = useState<string>(query.device || '')
   //@ts-ignore
-  const [sensor, setSensor] = useState<string>('')
+  const [sensor, setSensor] = useState<string>(query.sensor || '')
   //@ts-ignore
-  const [channel, setChannel] = useState<string[]>([])
-  const [sensorId, setSensorId] = useState<string>('')
+  const [channel, setChannel] = useState<string[]>(query.channels || [])
+  const [sensorId, setSensorId] = useState<string>(query.sensorId || '')
+  const [manualMethod, setManualMethod] = useState<string>(query.manualMethod || '');
+  const [manualObjectId, setManualObjectId] = useState<string>(query.manualObjectId || '');
+
 
   const [lists, setLists] = useState({
     groups: [] as Array<SelectableValue<string>>,
@@ -30,13 +37,21 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   })
 
   const [isLoading, setIsLoading] = useState(false)
-//@ts-ignore
+  //@ts-ignore
   const [groupId, setGroupId] = useState<string>('')
-//@ts-ignore
+  //@ts-ignore
   const [deviceId, setDeviceId] = useState<string>('')
 
 
-  /* ############################################## FETCH GROUPS ####################################### */
+  /* ================================================== SORT ================================================== */
+  lists.groups.sort((a, b) => (a.label ?? '').localeCompare(b.label ?? ''))
+  lists.devices.sort((a, b) => (a.label ?? '').localeCompare(b.label ?? ''))
+  lists.sensors.sort((a, b) => (a.label ?? '').localeCompare(b.label ?? ''))
+
+
+
+
+  /* ================================================== FETCH GROUPS ================================================== */
   useEffect(() => {
     async function fetchGroups() {
       setIsLoading(true)
@@ -62,9 +77,11 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     fetchGroups()
   }, [datasource])
 
-  /* ########################################### FETCH DEVICES ####################################### */
+  /* ================================================== FETCH DEVICES ================================================== */
   useEffect(() => {
     async function fetchDevices() {
+      if (!group) {return}; // Eğer group boşsa fetch yapmayı engelle
+      
       setIsLoading(true)
       try {
         const response = await datasource.getDevices(group)
@@ -79,8 +96,6 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
             ...prev,
             devices: deviceOptions,
           }))
-        } else {
-          console.error('Invalid response format:', response)
         }
       } catch (error) {
         console.error('Error fetching devices:', error)
@@ -90,9 +105,11 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     fetchDevices()
   }, [datasource, group])
 
-  /* ######################################## FETCH SENSOR ############################################### */
+  /* ================================================== FETCH SENSOR ================================================== */
   useEffect(() => {
     async function fetchSensors() {
+      if (!device) {return}; // Eğer device boşsa fetch yapmayı engelle
+
       setIsLoading(true)
       try {
         const response = await datasource.getSensors(device)
@@ -108,8 +125,6 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
             ...prev,
             sensors: sensorOptions,
           }))
-        } else {
-          console.error('Invalid response format:', response)
         }
       } catch (error) {
         console.error('Error fetching sensors:', error)
@@ -119,8 +134,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     fetchSensors()
   }, [datasource, device])
 
-  /* ####################################### FETCH CHANNEL ############################################# */
-
+  /* ==================================================  FETCH CHANNEL ==================================================   */
   useEffect(() => {
     async function fetchChannels() {
       if (!sensorId) {
@@ -202,10 +216,20 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     }
   }, [isTextMode, isRawMode])
 
-  /* ######################################## QUERY  ############################################### */
+  /* ==================================================  INITIAL VALUES  ================================================== */
+  useEffect(() => {
+    setGroup(query.group || '')
+    setDevice(query.device || '')
+    setSensor(query.sensor || '')
+    setChannel(query.channels || [])
+    setSensorId(query.sensorId || '')
+  }, [query.group, query.device, query.sensor, query.channels, query.sensorId]) 
 
-  const onQueryTypeChange = (value: SelectableValue<QueryType>) => {
-    // Mevcut query'nin diğer değerlerini koruyarak sadece tipini değiştir
+
+  /* ==================================================  QUERY  ==================================================  */
+
+  /* ==================================================  ONQUERYTYPESCHANGE ==================================================  */
+    const onQueryTypeChange = (value: SelectableValue<QueryType>) => {
     onChange({
       ...query,
       queryType: value.value!,
@@ -213,6 +237,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     onRunQuery()
   }
 
+  /* ==================================================  FIND GROUP ID ================================================= */
   const findGroupId = async (groupName: string) => {
     try {
       const response = await datasource.getGroups()
@@ -243,9 +268,30 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     return ''
   }
 
+  const findSensorObjid = async (sensorName: string) => {
+    try {
+      const response = await datasource.getSensors(device)
+      if (response && Array.isArray(response.sensors)) {
+        const sensor = response.sensors.find((s) => s.sensor === sensorName)
+        if (sensor) {
+          setSensorId(sensor.objid.toString())
+          return sensor.objid.toString()
+        } else {
+          console.error('Sensor not found:', sensorName)
+        }
+      } else {
+        console.error('Invalid response format:', response)
+      }
+    } catch (error) {
+      console.error('Error fetching sensors:', error)
+    }
+    return ''
+  }
+
+  /* ==================================================  ONGROUPCHANGE ==================================================  */
   const onGroupChange = async (value: SelectableValue<string>) => {
     const groupObjId = await findGroupId(value.value!)
-    
+
     onChange({
       ...query,
       group: value.value!,
@@ -300,26 +346,8 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     onRunQuery()
   }
 
-  const findSensorObjid = async (sensorName: string) => {
-    try {
-      const response = await datasource.getSensors(device)
-      if (response && Array.isArray(response.sensors)) {
-        const sensor = response.sensors.find((s) => s.sensor === sensorName)
-        if (sensor) {
-          setSensorId(sensor.objid.toString())
-          return sensor.objid.toString()
-        } else {
-          console.error('Sensor not found:', sensorName)
-        }
-      } else {
-        console.error('Invalid response format:', response)
-      }
-    } catch (error) {
-      console.error('Error fetching sensors:', error)
-    }
-    return ''
-  }
 
+/* ==================================================  ONSENSORCHANGE ==================================================  */
   const onSensorChange = async (value: SelectableValue<string>) => {
     const sensorObjId = await findSensorObjid(value.value!)
 
@@ -331,6 +359,15 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
         channel: '',
       })
       setChannel([])
+    } else if (isManualMode) {
+
+      onChange({
+        ...query,
+        sensor: value.value!,
+        sensorId: sensorObjId,
+        manualObjectId: sensorObjId,
+      })
+      setManualObjectId(sensorObjId)
     } else {
       onChange({
         ...query,
@@ -351,6 +388,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     onRunQuery()
   }
 
+  /* ==================================================  ONCHANNELCHANGE ==================================================  */
   const onChannelChange = (value: SelectableValue<string> | Array<SelectableValue<string>>) => {
     const selectedChannels = Array.isArray(value) ? value.map(v => v.value || '') : [];
     onChange({
@@ -363,31 +401,63 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     onRunQuery();
   };
 
+/* ==================================================  ONPROPERTYCHANGE ==================================================  */
   const onPropertyChange = (value: SelectableValue<string>) => {
     onChange({ ...query, property: value.value! })
     onRunQuery()
   }
 
+
+  /* ==================================================  ONFILTERPROPERTYCHANGE ================================================= */
   const onFilterPropertyChange = (value: SelectableValue<string>) => {
     onChange({ ...query, filterProperty: value.value! })
     onRunQuery()
   }
 
+
+  /* ==================================================  ONINCLUDEGROUPNAME ==================================================  */
   const onIncludeGroupName = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange({ ...query, includeGroupName: e.currentTarget.checked })
     onRunQuery()
   }
 
+
+  /* ==================================================  ONINCLUDEDEVICENAME ==================================================  */
   const onIncludeDeviceName = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange({ ...query, includeDeviceName: e.currentTarget.checked })
     onRunQuery()
   }
 
+
+  /* ==================================================  ONINCLUDESENSORNAME ==================================================  */
   const onIncludeSensorName = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange({ ...query, includeSensorName: e.currentTarget.checked })
     onRunQuery()
   }
 
+  /* ==================================================  ONMANUALMETHODCHANGE ==================================================  */
+  const onManualMethodChange = (value: SelectableValue<string>) => {
+    setManualMethod(value.value!);
+    onChange({
+      ...query,
+      manualMethod: value.value,
+    });
+    onRunQuery();
+  };
+
+
+  /* ==================================================  ONMANUALOBJECTIDCHANGE ==================================================  */
+  const onManualObjectIdChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.currentTarget.value;
+    setManualObjectId(value);
+    onChange({
+      ...query,
+      manualObjectId: value,
+    });
+    onRunQuery();
+  };
+
+  /* ================================================== RENDER ================================================== */
   return (
     <Stack direction="column" gap={2}>
       <Stack direction="row" gap={2}>
@@ -423,9 +493,9 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
               onChange={onDeviceChange}
               width={47}
               allowCustomValue
-              placeholder="Select Device or type '*'"
               isClearable
               isDisabled={!query.group}
+              placeholder="Select Device or type '*'"
             />
           </InlineField>
         </Stack>
@@ -444,8 +514,6 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
               isDisabled={!query.device}
             />
           </InlineField>
-
-          {/* Channel seçimini sadece metrics modunda göster */}
           <InlineField label="Channel" labelWidth={20} grow>
             <Select
               isLoading={!lists.channels.length}
@@ -462,8 +530,8 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
           </InlineField>
         </Stack>
       </Stack>
-      
-      {/* Metrics modu için options */}
+
+      {/*options for Metrics    */}
       {isMetricsMode && (
         <FieldSet label="Options">
           <Stack direction="row" gap={1}>
@@ -480,7 +548,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
         </FieldSet>
       )}
 
-      {/* Text ve Raw modları için options */}
+      {/* Options for Text and Raw modes */}
       {(isTextMode || isRawMode) && (
         <FieldSet label="Options">
           <Stack direction="row" gap={1}>
@@ -503,7 +571,43 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
           </Stack>
         </FieldSet>
       )}
-      {/* query selbt burada ben kendim urls getsensordteail vb veriler girip bir tabe panel olusttumak istiyorum . /api/getobjectproperty.htm?id=objectid&name=propertyname&show=text , /api/getsensordetails.xml?id=sensorid ,/api/getstatus.htm?id=0   */}
+
+      {/* Manual API Query Section */}
+      {isManualMode && (
+        <FieldSet label="Manual API Query">
+          <Stack direction="row" gap={2}>
+            <InlineField label="API Method" labelWidth={16} tooltip="Select or enter a custom PRTG API endpoint">
+              <Select
+                options={manualApiMethods}
+                value={manualMethod}
+                onChange={onManualMethodChange}
+                width={32}
+                placeholder="Select or enter API method"
+                allowCustomValue
+                onCreateOption={(customValue) => {
+                  setManualMethod(customValue);
+                  onChange({
+                    ...query,
+                    manualMethod: customValue,
+                  });
+                  onRunQuery();
+                }}
+                isClearable
+              />
+            </InlineField>
+            <InlineField label="Object ID" labelWidth={16} tooltip="Object ID from selected sensor">
+              <Input
+                value={manualObjectId || sensorId}
+                onChange={onManualObjectIdChange}
+                placeholder="Automatically filled from sensor"
+                width={32}
+                type="text"
+                disabled={!!sensorId}
+              />
+            </InlineField>
+          </Stack>
+        </FieldSet>
+      )}
 
     </Stack>
   )

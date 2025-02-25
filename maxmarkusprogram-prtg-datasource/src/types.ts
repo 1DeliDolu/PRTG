@@ -5,7 +5,7 @@ export enum QueryType {
   Metrics = 'metrics',
   Raw = 'raw',
   Text = 'text',
-  Selbts = 'selbts'
+  Manual = 'manual'  // Changed from 'selbts' to 'manual'
 }
 
 export interface MyQuery extends DataQuery {
@@ -16,6 +16,8 @@ export interface MyQuery extends DataQuery {
   deviceId: string;
   sensor: string;
   sensorId: string;
+  manualMethod?: string;
+  manualObjectId?: string;
   channel: string;
   channels: string[];
   property?: string;
@@ -29,6 +31,30 @@ export interface DataPoint {
   Time: number;
   Value: number | string;
 }
+// Add new interface for manual API methods
+export interface ManualApiMethod {
+  label: string;
+  value: string;
+  description: string;
+}
+
+export const manualApiMethods: ManualApiMethod[] = [
+ /*  {
+    label: 'Get Object Property',
+    value: 'getobjectproperty.htm',
+    description: 'Retrieve specific property of an object',
+  }, */
+  {
+    label: 'Get Sensor Details',
+    value: 'getsensordetails.json',
+    description: 'Get detailed information about a sensor',
+  },
+  {
+    label: 'Get Status',
+    value: 'getstatus.htm',
+    description: 'Retrieve system status information',
+  },
+];
 
 export interface DataSourceResponse {
   datapoints: DataPoint[];
