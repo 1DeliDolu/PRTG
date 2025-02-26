@@ -9,11 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/1DeliDolu/PRTG/maxmarkusprogram/prtg/pkg/models"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/1DeliDolu/PRTG/maxmarkusprogram/prtg/pkg/models"
 )
+
+// Logger interface defines the logging methods required by the datasource
 
 var (
 	_ backend.QueryDataHandler      = (*Datasource)(nil)
@@ -48,9 +50,9 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 	}, nil
 }
 
+
 /*  ########################################### Dispose ################################################### */
 func (d *Datasource) Dispose() {
-
 }
 
 /*  ########################################### QueryData ################################################### */

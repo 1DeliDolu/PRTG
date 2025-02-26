@@ -25,6 +25,11 @@ func NewApi(baseURL, apiKey string, cacheTime, requestTimeout time.Duration) *Ap
 	}
 }
 
+// Getter for the cache time
+func (a *Api) GetCacheTime() time.Duration {
+	return a.cacheTime
+}
+
 /* ====================================== URL BUILDER ====================================== */
 func (a *Api) buildApiUrl(method string, params map[string]string) (string, error) {
 	baseUrl := fmt.Sprintf("%s/api/%s", a.baseURL, method)
@@ -34,10 +39,12 @@ func (a *Api) buildApiUrl(method string, params map[string]string) (string, erro
 	}
 
 	q := url.Values{}
-	q.Set("apitoken", a.apiKey)
+	q.Set("apiToken", a.apiKey)
 
 	for key, value := range params {
-		q.Set(key, value)
+		if key != "apiToken" { // Avoid duplicate apiToken
+			q.Set(key, value)
+		}
 	}
 
 	u.RawQuery = q.Encode()
@@ -323,7 +330,7 @@ func (a *Api) GetHistoricalData(sensorID string, startDate, endDate time.Time) (
 }
 
 /* ====================================== MANUAL METHOD HANDLER ================================= */
-func (a *Api) ExecuteManualMethod(method string, objectId string) (*ManualResponse, error) {
+func (a *Api) ExecuteManualMethod(method string, objectId string) (*PrtgManualMethodResponse, error) {
 	params := map[string]string{}
 
 	if objectId != "" {
@@ -343,7 +350,7 @@ func (a *Api) ExecuteManualMethod(method string, objectId string) (*ManualRespon
 	var keyValues []KeyValue
 	flattenJSON("", rawData, &keyValues)
 
-	return &ManualResponse{
+	return &PrtgManualMethodResponse{
 		Manuel:    rawData,
 		KeyValues: keyValues,
 	}, nil

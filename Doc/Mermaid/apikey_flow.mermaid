@@ -3,7 +3,8 @@ flowchart TB
         A[ConfigEditor Component]
         B[Hostname Input]
         C[API Key Input]
-        D[Save & Test Button]
+        D[Cache Time Input]
+        E[Save & Test Button]
         
         A --> B
         A --> C
@@ -11,9 +12,9 @@ flowchart TB
     end
 
     subgraph SecureStorage
-        E[secureJsonData]
-        F[Encrypted Storage]
-        D -->|Store API Key| E
+        F[secureJsonData]
+        G[Encrypted Storage]
+        C -->|Store API Key| E
         E -->|Encrypt| F
     end
 

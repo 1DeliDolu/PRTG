@@ -2,170 +2,194 @@ package plugin
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 )
 
 /* =================================== GROUP LIST RESPONSE ======================================== */
 type PrtgGroupListResponse struct {
-	PrtgVersion string                    `json:"prtg-version" xml:"prtg-version"`
-	TreeSize    int64                     `json:"treesize" xml:"treesize"`
-	Groups      []PrtgGroupListItemStruct `json:"groups" xml:"groups"`
+	PrtgVersion string                    `json:"prtg-version"`
+	TreeSize    int64                     `json:"treesize"`
+	Groups      []PrtgGroupListItemStruct `json:"groups"`
 }
 
 type PrtgGroupListItemStruct struct {
-	Active         bool    `json:"active" xml:"active"`
-	ActiveRAW      int     `json:"active_raw" xml:"active_raw"`
-	Channel        string  `json:"channel" xml:"channel"`
-	ChannelRAW     string  `json:"channel_raw" xml:"channel_raw"`
-	Datetime       string  `json:"datetime" xml:"datetime"`
-	DatetimeRAW    float64 `json:"datetime_raw" xml:"datetime_raw"`
-	Device         string  `json:"device" xml:"device"`
-	DeviceRAW      string  `json:"device_raw" xml:"device_raw"`
-	Downsens       string  `json:"downsens" xml:"downsens"`
-	DownsensRAW    int     `json:"downsens_raw" xml:"downsens_raw"`
-	Group          string  `json:"group" xml:"group"`
-	GroupRAW       string  `json:"group_raw" xml:"group_raw"`
-	Message        string  `json:"message" xml:"message"`
-	MessageRAW     string  `json:"message_raw" xml:"message_raw"`
-	ObjectId       int64   `json:"objid" xml:"objid"`
-	ObjectIdRAW    int64   `json:"objid_raw" xml:"objid_raw"`
-	Pausedsens     string  `json:"pausedsens" xml:"pausedsens"`
-	PausedsensRAW  int     `json:"pausedsens_raw" xml:"pausedsens_raw"`
-	Priority       string  `json:"priority" xml:"priority"`
-	PriorityRAW    int     `json:"priority_raw" xml:"priority_raw"`
-	Sensor         string  `json:"sensor" xml:"sensor"`
-	SensorRAW      string  `json:"sensor_raw" xml:"sensor_raw"`
-	Status         string  `json:"status" xml:"status"`
-	StatusRAW      int     `json:"status_raw" xml:"status_raw"`
-	Tags           string  `json:"tags" xml:"tags"`
-	TagsRAW        string  `json:"tags_raw" xml:"tags_raw"`
-	Totalsens      string  `json:"totalsens" xml:"totalsens"`
-	TotalsensRAW   int     `json:"totalsens_raw" xml:"totalsens_raw"`
-	Unusualsens    string  `json:"unusualsens" xml:"unusualsens"`
-	UnusualsensRAW int     `json:"unusualsens_raw" xml:"unusualsens_raw"`
-	Upsens         string  `json:"upsens" xml:"upsens"`
-	UpsensRAW      int     `json:"upsens_raw" xml:"upsens_raw"`
-	Warnsens       string  `json:"warnsens" xml:"warnsens"`
-	WarnsensRAW    int     `json:"warnsens_raw" xml:"warnsens_raw"`
+	Active         bool    `json:"active"`
+	ActiveRAW      int     `json:"active_raw"`
+	Channel        string  `json:"channel"`
+	ChannelRAW     string  `json:"channel_raw"`
+	Datetime       string  `json:"datetime"`
+	DatetimeRAW    float64 `json:"datetime_raw"`
+	Device         string  `json:"device"`
+	DeviceRAW      string  `json:"device_raw"`
+	Downsens       string  `json:"downsens"`
+	DownsensRAW    int     `json:"downsens_raw"`
+	Group          string  `json:"group"`
+	GroupRAW       string  `json:"group_raw"`
+	Message        string  `json:"message"`
+	MessageRAW     string  `json:"message_raw"`
+	ObjectId       int64   `json:"objid"`
+	ObjectIdRAW    int64   `json:"objid_raw"`
+	Pausedsens     string  `json:"pausedsens"`
+	PausedsensRAW  int     `json:"pausedsens_raw"`
+	Priority       string  `json:"priority"`
+	PriorityRAW    int     `json:"priority_raw"`
+	Sensor         string  `json:"sensor"`
+	SensorRAW      string  `json:"sensor_raw"`
+	Status         string  `json:"status"`
+	StatusRAW      int     `json:"status_raw"`
+	Tags           string  `json:"tags"`
+	TagsRAW        string  `json:"tags_raw"`
+	Totalsens      string  `json:"totalsens"`
+	TotalsensRAW   int     `json:"totalsens_raw"`
+	Unusualsens    string  `json:"unusualsens"`
+	UnusualsensRAW int     `json:"unusualsens_raw"`
+	Upsens         string  `json:"upsens"`
+	UpsensRAW      int     `json:"upsens_raw"`
+	Warnsens       string  `json:"warnsens"`
+	WarnsensRAW    int     `json:"warnsens_raw"`
 }
 
 /* =================================== DEVICE LIST RESPONSE ====================================== */
 type PrtgDevicesListResponse struct {
-	PrtgVersion string                     `json:"prtg-version" xml:"prtg-version"`
-	TreeSize    int64                      `json:"treesize" xml:"treesize"`
-	Devices     []PrtgDeviceListItemStruct `json:"devices" xml:"devices"`
+	PrtgVersion string                     `json:"prtg-version"`
+	TreeSize    int64                      `json:"treesize"`
+	Devices     []PrtgDeviceListItemStruct `json:"devices"`
 }
 
 type PrtgDeviceListItemStruct struct {
-	Active         bool    `json:"active" xml:"active"`
-	ActiveRAW      int     `json:"active_raw" xml:"active_raw"`
-	Channel        string  `json:"channel" xml:"channel"`
-	ChannelRAW     string  `json:"channel_raw" xml:"channel_raw"`
-	Datetime       string  `json:"datetime" xml:"datetime"`
-	DatetimeRAW    float64 `json:"datetime_raw" xml:"datetime_raw"`
-	Device         string  `json:"device" xml:"device"`
-	DeviceRAW      string  `json:"device_raw" xml:"device_raw"`
-	Downsens       string  `json:"downsens" xml:"downsens"`
-	DownsensRAW    int     `json:"downsens_raw" xml:"downsens_raw"`
-	Group          string  `json:"group" xml:"group"`
-	GroupRAW       string  `json:"group_raw" xml:"group_raw"`
-	Message        string  `json:"message" xml:"message"`
-	MessageRAW     string  `json:"message_raw" xml:"message_raw"`
-	ObjectId       int64   `json:"objid" xml:"objid"`
-	ObjectIdRAW    int64   `json:"objid_raw" xml:"objid_raw"`
-	Pausedsens     string  `json:"pausedsens" xml:"pausedsens"`
-	PausedsensRAW  int     `json:"pausedsens_raw" xml:"pausedsens_raw"`
-	Priority       string  `json:"priority" xml:"priority"`
-	PriorityRAW    int     `json:"priority_raw" xml:"priority_raw"`
-	Sensor         string  `json:"sensor" xml:"sensor"`
-	SensorRAW      string  `json:"sensor_raw" xml:"sensor_raw"`
-	Status         string  `json:"status" xml:"status"`
-	StatusRAW      int     `json:"status_raw" xml:"status_raw"`
-	Tags           string  `json:"tags" xml:"tags"`
-	TagsRAW        string  `json:"tags_raw" xml:"tags_raw"`
-	Totalsens      string  `json:"totalsens" xml:"totalsens"`
-	TotalsensRAW   int     `json:"totalsens_raw" xml:"totalsens_raw"`
-	Unusualsens    string  `json:"unusualsens" xml:"unusualsens"`
-	UnusualsensRAW int     `json:"unusualsens_raw" xml:"unusualsens_raw"`
-	Upsens         string  `json:"upsens" xml:"upsens"`
-	UpsensRAW      int     `json:"upsens_raw" xml:"upsens_raw"`
-	Warnsens       string  `json:"warnsens" xml:"warnsens"`
-	WarnsensRAW    int     `json:"warnsens_raw" xml:"warnsens_raw"`
+	Active         bool    `json:"active"`
+	ActiveRAW      int     `json:"active_raw"`
+	Channel        string  `json:"channel"`
+	ChannelRAW     string  `json:"channel_raw"`
+	Datetime       string  `json:"datetime"`
+	DatetimeRAW    float64 `json:"datetime_raw"`
+	Device         string  `json:"device"`
+	DeviceRAW      string  `json:"device_raw"`
+	Downsens       string  `json:"downsens"`
+	DownsensRAW    int     `json:"downsens_raw"`
+	Group          string  `json:"group"`
+	GroupRAW       string  `json:"group_raw"`
+	Message        string  `json:"message"`
+	MessageRAW     string  `json:"message_raw"`
+	ObjectId       int64   `json:"objid"`
+	ObjectIdRAW    int64   `json:"objid_raw"`
+	Pausedsens     string  `json:"pausedsens"`
+	PausedsensRAW  int     `json:"pausedsens_raw"`
+	Priority       string  `json:"priority"`
+	PriorityRAW    int     `json:"priority_raw"`
+	Sensor         string  `json:"sensor"`
+	SensorRAW      string  `json:"sensor_raw"`
+	Status         string  `json:"status"`
+	StatusRAW      int     `json:"status_raw"`
+	Tags           string  `json:"tags"`
+	TagsRAW        string  `json:"tags_raw"`
+	Totalsens      string  `json:"totalsens"`
+	TotalsensRAW   int     `json:"totalsens_raw"`
+	Unusualsens    string  `json:"unusualsens"`
+	UnusualsensRAW int     `json:"unusualsens_raw"`
+	Upsens         string  `json:"upsens"`
+	UpsensRAW      int     `json:"upsens_raw"`
+	Warnsens       string  `json:"warnsens"`
+	WarnsensRAW    int     `json:"warnsens_raw"`
 }
 
 /* =================================== SENSOR LIST RESPONSE ===================================== */
 type PrtgSensorsListResponse struct {
-	PrtgVersion string                     `json:"prtg-version" xml:"prtg-version"`
-	TreeSize    int64                      `json:"treesize" xml:"treesize"`
-	Sensors     []PrtgSensorListItemStruct `json:"sensors" xml:"sensors"`
+	PrtgVersion string                     `json:"prtg-version"`
+	TreeSize    int64                      `json:"treesize"`
+	Sensors     []PrtgSensorListItemStruct `json:"sensors"`
+}
+
+// Mixed type for handling both string and number values
+type StringOrNumber struct {
+	String string
+}
+
+func (s *StringOrNumber) UnmarshalJSON(data []byte) error {
+	// Try string first
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		s.String = str
+		return nil
+	}
+
+	// Try number if string fails
+	var num float64
+	if err := json.Unmarshal(data, &num); err == nil {
+		s.String = fmt.Sprintf("%v", num)
+		return nil
+	}
+
+	return fmt.Errorf("value must be string or number")
 }
 
 type PrtgSensorListItemStruct struct {
-	Active         bool    `json:"active" xml:"active"`
-	ActiveRAW      int     `json:"active_raw" xml:"active_raw"`
-	Channel        string  `json:"channel" xml:"channel"`
-	ChannelRAW     int     `json:"channel_raw" xml:"channel_raw"`
-	Datetime       string  `json:"datetime" xml:"datetime"`
-	DatetimeRAW    float64 `json:"datetime_raw" xml:"datetime_raw"`
-	Device         string  `json:"device" xml:"device"`
-	DeviceRAW      string  `json:"device_raw" xml:"device_raw"`
-	Downsens       string  `json:"downsens" xml:"downsens"`
-	DownsensRAW    int     `json:"downsens_raw" xml:"downsens_raw"`
-	Group          string  `json:"group" xml:"group"`
-	GroupRAW       string  `json:"group_raw" xml:"group_raw"`
-	Message        string  `json:"message" xml:"message"`
-	MessageRAW     string  `json:"message_raw" xml:"message_raw"`
-	ObjectId       int64   `json:"objid" xml:"objid"`
-	ObjectIdRAW    int64   `json:"objid_raw" xml:"objid_raw"`
-	Pausedsens     string  `json:"pausedsens" xml:"pausedsens"`
-	PausedsensRAW  int     `json:"pausedsens_raw" xml:"pausedsens_raw"`
-	Priority       string  `json:"priority" xml:"priority"`
-	PriorityRAW    int     `json:"priority_raw" xml:"priority_raw"`
-	Sensor         string  `json:"sensor" xml:"sensor"`
-	SensorRAW      string  `json:"sensor_raw" xml:"sensor_raw"`
-	Status         string  `json:"status" xml:"status"`
-	StatusRAW      int     `json:"status_raw" xml:"status_raw"`
-	Tags           string  `json:"tags" xml:"tags"`
-	TagsRAW        string  `json:"tags_raw" xml:"tags_raw"`
-	Totalsens      string  `json:"totalsens" xml:"totalsens"`
-	TotalsensRAW   int     `json:"totalsens_raw" xml:"totalsens_raw"`
-	Unusualsens    string  `json:"unusualsens" xml:"unusualsens"`
-	UnusualsensRAW int     `json:"unusualsens_raw" xml:"unusualsens_raw"`
-	Upsens         string  `json:"upsens" xml:"upsens"`
-	UpsensRAW      int     `json:"upsens_raw" xml:"upsens_raw"`
-	Warnsens       string  `json:"warnsens" xml:"warnsens"`
-	WarnsensRAW    int     `json:"warnsens_raw" xml:"warnsens_raw"`
+	Active         bool           `json:"active"`
+	ActiveRAW      int            `json:"active_raw"`
+	Channel        string         `json:"channel"`
+	ChannelRAW     StringOrNumber `json:"channel_raw"` // Changed from string to StringOrNumber
+	Datetime       string         `json:"datetime"`
+	DatetimeRAW    float64        `json:"datetime_raw"`
+	Device         string         `json:"device"`
+	DeviceRAW      string         `json:"device_raw"`
+	Downsens       string         `json:"downsens"`
+	DownsensRAW    int            `json:"downsens_raw"`
+	Group          string         `json:"group"`
+	GroupRAW       string         `json:"group_raw"`
+	Message        string         `json:"message"`
+	MessageRAW     string         `json:"message_raw"`
+	ObjectId       int64          `json:"objid"`
+	ObjectIdRAW    int64          `json:"objid_raw"`
+	Pausedsens     string         `json:"pausedsens"`
+	PausedsensRAW  int            `json:"pausedsens_raw"`
+	Priority       string         `json:"priority"`
+	PriorityRAW    int            `json:"priority_raw"`
+	Sensor         string         `json:"sensor"`
+	SensorRAW      string         `json:"sensor_raw"`
+	Status         string         `json:"status"`
+	StatusRAW      int            `json:"status_raw"`
+	Tags           string         `json:"tags"`
+	TagsRAW        string         `json:"tags_raw"`
+	Totalsens      string         `json:"totalsens"`
+	TotalsensRAW   int            `json:"totalsens_raw"`
+	Unusualsens    string         `json:"unusualsens"`
+	UnusualsensRAW int            `json:"unusualsens_raw"`
+	Upsens         string         `json:"upsens"`
+	UpsensRAW      int            `json:"upsens_raw"`
+	Warnsens       string         `json:"warnsens"`
+	WarnsensRAW    int            `json:"warnsens_raw"`
 }
 
 /* =================================== STATUS LIST RESPONSE ===================================== */
 type PrtgStatusListResponse struct {
-	PrtgVersion          string `json:"prtgversion" xml:"prtg-version"`
-	AckAlarms            string `json:"ackalarms" xml:"ackalarms"`
-	Alarms               string `json:"alarms" xml:"alarms"`
-	AutoDiscoTasks       string `json:"autodiscotasks" xml:"autodiscotasks"`
-	BackgroundTasks      string `json:"backgroundtasks" xml:"backgroundtasks"`
-	Clock                string `json:"clock" xml:"clock"`
-	ClusterNodeName      string `json:"clusternodename" xml:"clusternodename"`
-	ClusterType          string `json:"clustertype" xml:"clustertype"`
-	CommercialExpiryDays int    `json:"commercialexpirydays" xml:"commercialexpirydays"`
-	CorrelationTasks     string `json:"correlationtasks" xml:"correlationtasks"`
-	DaysInstalled        int    `json:"daysinstalled" xml:"daysinstalled"`
-	EditionType          string `json:"editiontype" xml:"editiontype"`
+	PrtgVersion          string `json:"prtgversion"`
+	AckAlarms            string `json:"ackalarms"`
+	Alarms               string `json:"alarms"`
+	AutoDiscoTasks       string `json:"autodiscotasks"`
+	BackgroundTasks      string `json:"backgroundtasks"`
+	Clock                string `json:"clock"`
+	ClusterNodeName      string `json:"clusternodename"`
+	ClusterType          string `json:"clustertype"`
+	CommercialExpiryDays int    `json:"commercialexpirydays"`
+	CorrelationTasks     string `json:"correlationtasks"`
+	DaysInstalled        int    `json:"daysinstalled"`
+	EditionType          string `json:"editiontype"`
 	Favs                 int    `json:"favs"`
-	JsClock              int64  `json:"jsclock" xml:"jsclock"`
-	LowMem               bool   `json:"lowmem" xml:"lowmem"`
-	MaintExpiryDays      string `json:"maintexpirydays" xml:"maintexpirydays"`
-	MaxSensorCount       string `json:"maxsensorcount" xml:"maxsensorcount"`
-	NewAlarms            string `json:"newalarms" xml:"newalarms"`
-	NewMessages          string `json:"newmessages" xml:"newmessages"`
-	NewTickets           string `json:"newtickets" xml:"newtickets"`
-	Overloadprotection   bool   `json:"overloadprotection" xml:"overloadprotection"`
-	PartialAlarms        string `json:"partialalarms" xml:"partialalarms"`
-	PausedSens           string `json:"pausedsens" xml:"pausedsens"`
-	PRTGUpdateAvailable  bool   `json:"prtgupdateavailable" xml:"prtgupdateavailable"`
-	ReadOnlyUser         string `json:"readonlyuser" xml:"readonlyuser"`
-	ReportTasks          string `json:"reporttasks" xml:"reporttasks"`
+	JsClock              int64  `json:"jsclock" `
+	LowMem               bool   `json:"lowmem"`
+	MaintExpiryDays      string `json:"maintexpirydays"`
+	MaxSensorCount       string `json:"maxsensorcount"`
+	NewAlarms            string `json:"newalarms"`
+	NewMessages          string `json:"newmessages"`
+	NewTickets           string `json:"newtickets"`
+	Overloadprotection   bool   `json:"overloadprotection"`
+	PartialAlarms        string `json:"partialalarms"`
+	PausedSens           string `json:"pausedsens"`
+	PRTGUpdateAvailable  bool   `json:"prtgupdateavailable"`
+	ReadOnlyUser         string `json:"readonlyuser"`
+	ReportTasks          string `json:"reporttasks"`
 	TotalSens            int    `json:"totalsens"`
 	TrialExpiryDays      int    `json:"trialexpirydays"`
 	UnknownSens          string `json:"unknownsens"`
@@ -177,18 +201,18 @@ type PrtgStatusListResponse struct {
 
 /* =================================== CHANNEL LIST RESPONSE ==================================== */
 type PrtgChannelsListResponse struct {
-	PrtgVersion string                   `json:"prtg-version" xml:"prtg-version"`
-	TreeSize    int64                    `json:"treesize" xml:"treesize"`
-	Values      []PrtgChannelValueStruct `json:"values" xml:"values"`
+	PrtgVersion string                   `json:"prtg-version"`
+	TreeSize    int64                    `json:"treesize"`
+	Values      []PrtgChannelValueStruct `json:"values"`
 }
 
 type PrtgChannelValueStruct map[string]interface{}
 
 /* =================================== CHANNEL VALUE RESPONSE =================================== */
 type PrtgHistoricalDataResponse struct {
-	PrtgVersion string       `json:"prtg-version" xml:"prtg-version"`
-	TreeSize    int64        `json:"treesize" xml:"treesize"`
-	HistData    []PrtgValues `json:"histdata" xml:"histdata"`
+	PrtgVersion string       `json:"prtg-version"`
+	TreeSize    int64        `json:"treesize"`
+	HistData    []PrtgValues `json:"histdata"`
 }
 
 type PrtgValues struct {
@@ -211,11 +235,11 @@ func (p *PrtgValues) UnmarshalJSON(data []byte) error {
 
 /* =================================== QUERY MODEL ============================================== */
 type Datasource struct {
-	baseURL string
-	api     *Api
-	logger  PrtgLogger 
+	api     ApiInterface
+	logger  PrtgLogger
 	tracer  *Tracer
 	metrics *Metrics
+	baseURL string
 }
 
 type Group struct {
@@ -261,6 +285,18 @@ type cacheItem struct {
 }
 
 /* =================================== API ==================================================== */
+type ApiInterface interface {
+	GetCacheTime() time.Duration
+	SetTimeout(timeout time.Duration)
+	GetStatusList() (*PrtgStatusListResponse, error)
+	GetGroups() (*PrtgGroupListResponse, error)
+	GetDevices(group string) (*PrtgDevicesListResponse, error)
+	GetSensors(device string) (*PrtgSensorsListResponse, error)
+	GetChannels(objid string) (*PrtgChannelValueStruct, error)
+	GetHistoricalData(sensorID string, startDate, endDate time.Time) (*PrtgHistoricalDataResponse, error)
+	ExecuteManualMethod(method string, objectId string) (*PrtgManualMethodResponse, error)
+}
+
 type Api struct {
 	baseURL   string
 	apiKey    string
@@ -271,7 +307,7 @@ type Api struct {
 }
 
 /* =================================== MANUAL STRUCT =========================================== */
-type ManualResponse struct {
+type PrtgManualMethodResponse struct {
 	Manuel    map[string]interface{} `json:"raw"`
 	KeyValues []KeyValue             `json:"keyValues"`
 }

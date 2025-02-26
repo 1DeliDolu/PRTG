@@ -1,0 +1,64 @@
+@startuml Query
+left to right direction
+skinparam actorStyle awesome
+
+actor User
+
+rectangle "Query Editor" {
+    usecase "Select Query Type" as QT
+    
+    ' Metrics Query Flow
+    usecase "Select Group" as SG
+    usecase "Select Device" as SD
+    usecase "Select Sensor" as SS
+    usecase "Select Channel" as SC
+    usecase "Show Graph" as Graph
+    usecase "Configure Display Labels" as Labels
+    
+    ' Raw Query Flow
+    usecase "View Status Data" as Status
+    usecase "Show Raw Properties" as Raw
+    
+    ' Text Query Flow
+    usecase "View Sensor Data" as TextData
+    
+    ' Manual Query Flow
+    usecase "Enter Sensor ID" as ManualID
+    usecase "View Status/Details" as Details
+}
+
+' Main Flow
+User --> QT
+QT --> SG
+
+' Metrics Flow
+SG ..> SD : selects
+SD ..> SS : selects
+SS ..> SC : selects
+SC ..> Graph : generates
+SS ..> Labels : optional
+
+' Raw Query Flow
+SG ..> SD : selects
+SD ..> SS : selects
+SS ..> Status : shows
+Status ..> Raw : displays\n(active, status, message,\npriority, tags)
+
+' Text Query Flow
+SG ..> SD : selects
+SD ..> SS : selects
+SS ..> TextData : displays
+
+' Manual Flow
+QT --> ManualID : manual mode
+ManualID ..> Details : shows
+
+note right of QT
+  Query Types:
+  - Metrics
+  - Raw
+  - Text
+  - Manual
+end note
+
+@enduml
