@@ -129,7 +129,7 @@ type PrtgSensorListItemStruct struct {
 	Active         bool           `json:"active"`
 	ActiveRAW      int            `json:"active_raw"`
 	Channel        string         `json:"channel"`
-	ChannelRAW     StringOrNumber `json:"channel_raw"` // Changed from string to StringOrNumber
+	ChannelRAW     StringOrNumber `json:"channel_raw"` 
 	Datetime       string         `json:"datetime"`
 	DatetimeRAW    float64        `json:"datetime_raw"`
 	Device         string         `json:"device"`

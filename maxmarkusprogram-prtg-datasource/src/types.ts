@@ -27,10 +27,7 @@ export interface MyQuery extends DataQuery {
   includeSensorName?: boolean;
 }
 
-export interface DataPoint {
-  Time: number;
-  Value: number | string;
-}
+
 // Add new interface for manual API methods
 export interface ManualApiMethod {
   label: string;
@@ -56,9 +53,7 @@ export const manualApiMethods: ManualApiMethod[] = [
   },
 ];
 
-export interface DataSourceResponse {
-  datapoints: DataPoint[];
-}
+
 
 /**
  * These are options configured for each DataSource instance
