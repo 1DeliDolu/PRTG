@@ -13,10 +13,10 @@ import (
 type PrtgGroupListResponse struct {
 	PrtgVersion string                    `json:"prtg-version"`
 	TreeSize    int64                     `json:"treesize"`
-	Groups      []PrtgGroupListItemStruct `json:"groups"`
+	Groups      []PrtgListItemStruct `json:"groups"`
 }
 
-type PrtgGroupListItemStruct struct {
+type PrtgListItemStruct struct {
 	Active         bool    `json:"active"`
 	ActiveRAW      int     `json:"active_raw"`
 	Channel        string  `json:"channel"`
@@ -57,51 +57,14 @@ type PrtgGroupListItemStruct struct {
 type PrtgDevicesListResponse struct {
 	PrtgVersion string                     `json:"prtg-version"`
 	TreeSize    int64                      `json:"treesize"`
-	Devices     []PrtgDeviceListItemStruct `json:"devices"`
-}
-
-type PrtgDeviceListItemStruct struct {
-	Active         bool    `json:"active"`
-	ActiveRAW      int     `json:"active_raw"`
-	Channel        string  `json:"channel"`
-	ChannelRAW     string  `json:"channel_raw"`
-	Datetime       string  `json:"datetime"`
-	DatetimeRAW    float64 `json:"datetime_raw"`
-	Device         string  `json:"device"`
-	DeviceRAW      string  `json:"device_raw"`
-	Downsens       string  `json:"downsens"`
-	DownsensRAW    int     `json:"downsens_raw"`
-	Group          string  `json:"group"`
-	GroupRAW       string  `json:"group_raw"`
-	Message        string  `json:"message"`
-	MessageRAW     string  `json:"message_raw"`
-	ObjectId       int64   `json:"objid"`
-	ObjectIdRAW    int64   `json:"objid_raw"`
-	Pausedsens     string  `json:"pausedsens"`
-	PausedsensRAW  int     `json:"pausedsens_raw"`
-	Priority       string  `json:"priority"`
-	PriorityRAW    int     `json:"priority_raw"`
-	Sensor         string  `json:"sensor"`
-	SensorRAW      string  `json:"sensor_raw"`
-	Status         string  `json:"status"`
-	StatusRAW      int     `json:"status_raw"`
-	Tags           string  `json:"tags"`
-	TagsRAW        string  `json:"tags_raw"`
-	Totalsens      string  `json:"totalsens"`
-	TotalsensRAW   int     `json:"totalsens_raw"`
-	Unusualsens    string  `json:"unusualsens"`
-	UnusualsensRAW int     `json:"unusualsens_raw"`
-	Upsens         string  `json:"upsens"`
-	UpsensRAW      int     `json:"upsens_raw"`
-	Warnsens       string  `json:"warnsens"`
-	WarnsensRAW    int     `json:"warnsens_raw"`
+	Devices     []PrtgListItemStruct `json:"devices"`
 }
 
 /* =================================== SENSOR LIST RESPONSE ===================================== */
 type PrtgSensorsListResponse struct {
 	PrtgVersion string                     `json:"prtg-version"`
 	TreeSize    int64                      `json:"treesize"`
-	Sensors     []PrtgSensorListItemStruct `json:"sensors"`
+	Sensors     []PrtgListItemStruct `json:"sensors"`
 }
 
 // Mixed type for handling both string and number values
@@ -127,42 +90,6 @@ func (s *StringOrNumber) UnmarshalJSON(data []byte) error {
 	return fmt.Errorf("value must be string or number")
 }
 
-type PrtgSensorListItemStruct struct {
-	Active         bool           `json:"active"`
-	ActiveRAW      int            `json:"active_raw"`
-	Channel        string         `json:"channel"`
-	ChannelRAW     StringOrNumber `json:"channel_raw"` 
-	Datetime       string         `json:"datetime"`
-	DatetimeRAW    float64        `json:"datetime_raw"`
-	Device         string         `json:"device"`
-	DeviceRAW      string         `json:"device_raw"`
-	Downsens       string         `json:"downsens"`
-	DownsensRAW    int            `json:"downsens_raw"`
-	Group          string         `json:"group"`
-	GroupRAW       string         `json:"group_raw"`
-	Message        string         `json:"message"`
-	MessageRAW     string         `json:"message_raw"`
-	ObjectId       int64          `json:"objid"`
-	ObjectIdRAW    int64          `json:"objid_raw"`
-	Pausedsens     string         `json:"pausedsens"`
-	PausedsensRAW  int            `json:"pausedsens_raw"`
-	Priority       string         `json:"priority"`
-	PriorityRAW    int            `json:"priority_raw"`
-	Sensor         string         `json:"sensor"`
-	SensorRAW      string         `json:"sensor_raw"`
-	Status         string         `json:"status"`
-	StatusRAW      int            `json:"status_raw"`
-	Tags           string         `json:"tags"`
-	TagsRAW        string         `json:"tags_raw"`
-	Totalsens      string         `json:"totalsens"`
-	TotalsensRAW   int            `json:"totalsens_raw"`
-	Unusualsens    string         `json:"unusualsens"`
-	UnusualsensRAW int            `json:"unusualsens_raw"`
-	Upsens         string         `json:"upsens"`
-	UpsensRAW      int            `json:"upsens_raw"`
-	Warnsens       string         `json:"warnsens"`
-	WarnsensRAW    int            `json:"warnsens_raw"`
-}
 
 /* =================================== STATUS LIST RESPONSE ===================================== */
 type PrtgStatusListResponse struct {
