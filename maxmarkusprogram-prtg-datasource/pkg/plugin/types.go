@@ -5,18 +5,16 @@ import (
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/grafana/grafana-plugin-sdk-go/backend"
 )
 
 /* =================================== GROUP LIST RESPONSE ======================================== */
 type PrtgGroupListResponse struct {
 	PrtgVersion string                    `json:"prtg-version"`
 	TreeSize    int64                     `json:"treesize"`
-	Groups      []PrtgListItemStruct `json:"groups"`
+	Groups      []PrtgGroupListItemStruct `json:"groups"`
 }
 
-type PrtgListItemStruct struct {
+type PrtgGroupListItemStruct struct {
 	Active         bool    `json:"active"`
 	ActiveRAW      int     `json:"active_raw"`
 	Channel        string  `json:"channel"`
@@ -57,14 +55,51 @@ type PrtgListItemStruct struct {
 type PrtgDevicesListResponse struct {
 	PrtgVersion string                     `json:"prtg-version"`
 	TreeSize    int64                      `json:"treesize"`
-	Devices     []PrtgListItemStruct `json:"devices"`
+	Devices     []PrtgDeviceListItemStruct `json:"devices"`
+}
+
+type PrtgDeviceListItemStruct struct {
+	Active         bool    `json:"active"`
+	ActiveRAW      int     `json:"active_raw"`
+	Channel        string  `json:"channel"`
+	ChannelRAW     string  `json:"channel_raw"`
+	Datetime       string  `json:"datetime"`
+	DatetimeRAW    float64 `json:"datetime_raw"`
+	Device         string  `json:"device"`
+	DeviceRAW      string  `json:"device_raw"`
+	Downsens       string  `json:"downsens"`
+	DownsensRAW    int     `json:"downsens_raw"`
+	Group          string  `json:"group"`
+	GroupRAW       string  `json:"group_raw"`
+	Message        string  `json:"message"`
+	MessageRAW     string  `json:"message_raw"`
+	ObjectId       int64   `json:"objid"`
+	ObjectIdRAW    int64   `json:"objid_raw"`
+	Pausedsens     string  `json:"pausedsens"`
+	PausedsensRAW  int     `json:"pausedsens_raw"`
+	Priority       string  `json:"priority"`
+	PriorityRAW    int     `json:"priority_raw"`
+	Sensor         string  `json:"sensor"`
+	SensorRAW      string  `json:"sensor_raw"`
+	Status         string  `json:"status"`
+	StatusRAW      int     `json:"status_raw"`
+	Tags           string  `json:"tags"`
+	TagsRAW        string  `json:"tags_raw"`
+	Totalsens      string  `json:"totalsens"`
+	TotalsensRAW   int     `json:"totalsens_raw"`
+	Unusualsens    string  `json:"unusualsens"`
+	UnusualsensRAW int     `json:"unusualsens_raw"`
+	Upsens         string  `json:"upsens"`
+	UpsensRAW      int     `json:"upsens_raw"`
+	Warnsens       string  `json:"warnsens"`
+	WarnsensRAW    int     `json:"warnsens_raw"`
 }
 
 /* =================================== SENSOR LIST RESPONSE ===================================== */
 type PrtgSensorsListResponse struct {
 	PrtgVersion string                     `json:"prtg-version"`
 	TreeSize    int64                      `json:"treesize"`
-	Sensors     []PrtgListItemStruct `json:"sensors"`
+	Sensors     []PrtgSensorListItemStruct `json:"sensors"`
 }
 
 // Mixed type for handling both string and number values
@@ -90,6 +125,42 @@ func (s *StringOrNumber) UnmarshalJSON(data []byte) error {
 	return fmt.Errorf("value must be string or number")
 }
 
+type PrtgSensorListItemStruct struct {
+	Active         bool           `json:"active"`
+	ActiveRAW      int            `json:"active_raw"`
+	Channel        string         `json:"channel"`
+	ChannelRAW     StringOrNumber `json:"channel_raw"` // Changed from string to StringOrNumber
+	Datetime       string         `json:"datetime"`
+	DatetimeRAW    float64        `json:"datetime_raw"`
+	Device         string         `json:"device"`
+	DeviceRAW      string         `json:"device_raw"`
+	Downsens       string         `json:"downsens"`
+	DownsensRAW    int            `json:"downsens_raw"`
+	Group          string         `json:"group"`
+	GroupRAW       string         `json:"group_raw"`
+	Message        string         `json:"message"`
+	MessageRAW     string         `json:"message_raw"`
+	ObjectId       int64          `json:"objid"`
+	ObjectIdRAW    int64          `json:"objid_raw"`
+	Pausedsens     string         `json:"pausedsens"`
+	PausedsensRAW  int            `json:"pausedsens_raw"`
+	Priority       string         `json:"priority"`
+	PriorityRAW    int            `json:"priority_raw"`
+	Sensor         string         `json:"sensor"`
+	SensorRAW      string         `json:"sensor_raw"`
+	Status         string         `json:"status"`
+	StatusRAW      int            `json:"status_raw"`
+	Tags           string         `json:"tags"`
+	TagsRAW        string         `json:"tags_raw"`
+	Totalsens      string         `json:"totalsens"`
+	TotalsensRAW   int            `json:"totalsens_raw"`
+	Unusualsens    string         `json:"unusualsens"`
+	UnusualsensRAW int            `json:"unusualsens_raw"`
+	Upsens         string         `json:"upsens"`
+	UpsensRAW      int            `json:"upsens_raw"`
+	Warnsens       string         `json:"warnsens"`
+	WarnsensRAW    int            `json:"warnsens_raw"`
+}
 
 /* =================================== STATUS LIST RESPONSE ===================================== */
 type PrtgStatusListResponse struct {
@@ -162,17 +233,13 @@ func (p *PrtgValues) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-/* =================================== DATASOURCE INTERFACE ==================================== */
-type PRTGAPI interface {
-	GetGroups() (*PrtgGroupListResponse, error)
-	GetStatusList() (*PrtgStatusListResponse, error)
-	GetDevices(groupId string) (*PrtgDevicesListResponse, error)
-	GetSensors(deviceId string) (*PrtgSensorsListResponse, error)
-	GetChannels(sensorId string) (*PrtgChannelValueStruct, error)
-	GetHistoricalData(sensorId string, from time.Time, to time.Time) (*PrtgHistoricalDataResponse, error)
-	ExecuteManualMethod(method string, objectId string) (*PrtgManualMethodResponse, error)
-	GetAnnotationData(query *AnnotationQuery) (*AnnotationResponse, error)
-	GetCacheTime() time.Duration
+/* =================================== QUERY MODEL ============================================== */
+type Datasource struct {
+	api     ApiInterface
+	logger  PrtgLogger
+	tracer  *Tracer
+	metrics *Metrics
+	baseURL string
 }
 
 type Group struct {
@@ -196,7 +263,6 @@ type queryModel struct {
 	Device            string   `json:"device"`
 	Sensor            string   `json:"sensor"`
 	Channel           string   `json:"channel"`
-	ChannelArray      []string `json:"channelArray"`
 	Property          string   `json:"property"`
 	FilterProperty    string   `json:"filterProperty"`
 	IncludeGroupName  bool     `json:"includeGroupName"`
@@ -206,18 +272,10 @@ type queryModel struct {
 	To                int64    `json:"to"`
 	ManualMethod      string   `json:"manualMethod"`
 	ManualObjectId    string   `json:"manualObjectId"`
-	Limit             int64    `json:"limit"`
-	Tags              []string `json:"tags"`
-	DashboardID       int64    `json:"dashboardId"`
-	DashboardUID      string   `json:"dashboardUid"`
-	PanelID           int64    `json:"panelId"`
-	IsStreaming       bool     `json:"isStreaming"`
-	StreamInterval    int64    `json:"streamInterval"`
-	UpdateMode        string   `json:"updateMode"` // Add this field for stream update mode
-	RefID             string   `json:"refId"`
 }
 
 /* =================================== DATASOURCE ============================================== */
+type MyDatasource struct{}
 
 /* =================================== CACHE ITEM ============================================== */
 type cacheItem struct {
@@ -403,3 +461,47 @@ type Datasource struct {
 	streamManager *streamManager
 }
 
+
+/* =================================== ANNOTATION STRUCTS ====================================== */
+type AnnotationQuery struct {
+	From         int64    `json:"from,omitempty"`  // milliseconds epoch
+	To           int64    `json:"to,omitempty"`    // milliseconds epoch
+	Limit        int64    `json:"limit,omitempty"` // default 100
+	AlertID      int64    `json:"alertId,omitempty"`
+	DashboardID  int64    `json:"dashboardId,omitempty"`
+	DashboardUID string   `json:"dashboardUID,omitempty"`
+	PanelID      int64    `json:"panelId,omitempty"`
+	UserID       int64    `json:"userId,omitempty"`
+	Type         string   `json:"type,omitempty"`     // alert or annotation
+	Tags         []string `json:"tags,omitempty"`     // AND filtering
+	SensorID     string   `json:"sensorId,omitempty"` // PRTG specific
+}
+
+type Annotation struct {
+	ID           string                 `json:"id"`           // Changed to string for UID
+	Time         int64                  `json:"time"`
+	TimeEnd      int64                  `json:"timeEnd"`
+	Title        string                 `json:"title"`
+	Text         string                 `json:"text"`
+	Tags         []string               `json:"tags"`
+	Type         string                 `json:"type,omitempty"`
+	Data         map[string]interface{} `json:"data,omitempty"`
+}
+
+type AnnotationResponse struct {
+	Annotations []Annotation `json:"annotations"`
+	Total       int          `json:"total"`
+}
+
+
+type PrtgAnnotationResponse struct {
+	Annotations []PrtgAnnotation `json:"annotations"`
+}
+
+type PrtgAnnotation struct {
+	ID      int64    `json:"id"`
+	Time    int64    `json:"time"`
+	TimeEnd int64    `json:"timeEnd"`
+	Text    string   `json:"text"`
+	Tags    []string `json:"tags"`
+}

@@ -1,0 +1,142 @@
+@startuml PRTG
+'---------------------------
+' OPTIONAL: Setzen eines Themes oder Layout-Anpassungen
+!theme blueprint
+hide methods
+hide stereotypes
+
+'---------------------------
+' Definition der Entitäten (Tabellen)
+entity "PrtgServerAddress" as PrtgServerAddress {
+  * Id : int
+  --
+  Url : varchar
+  Port : int
+  IsHttps : bit
+  Username : varchar
+  Password : varchar
+  IsPassHash : bit
+}
+
+entity "PrtgGroup" as PrtgGroup {
+  * Id : int
+  --
+  PrtgServerAddressId : int
+  Name : varchar
+  IsProbeNode : bit
+  SelfGroupId : int
+}
+
+entity "PrtgTag" as PrtgTag {
+  * Id : int
+  --
+  Name : varchar
+}
+
+entity "PrtgGroupTag" as PrtgGroupTag {
+  --
+  PrtgGroupId : int
+  PrtgTagId : int
+  PrtgServerAddressId : int
+}
+
+entity "PrtgDevice" as PrtgDevice {
+  * Id : int
+  --
+  PrtgServerAddressId : int
+  PrtgGroupId : int
+  Name : varchar
+  Host : varchar
+}
+
+entity "PrtgDeviceTag" as PrtgDeviceTag {
+  --
+  PrtgTagId : int
+  PrtgDeviceId : int
+  PrtgServerAddressId : int
+}
+
+entity "PrtgSensor" as PrtgSensor {
+  * Id : int
+  --
+  PrtgServerAddressId : int
+  PrtgDeviceId : int
+  Name : varchar
+  SensorType : varchar
+  LastCollected : datetime
+}
+
+entity "PrtgSensorTag" as PrtgSensorTag {
+  --
+  PrtgTagId : int
+  PrtgSensorId : int
+  PrtgServerAddressId : int
+}
+
+entity "PrtgChannel" as PrtgChannel {
+  * Id : int
+  --
+  PrtgServerAddressId : int
+  PrtgSensorId : int
+  Name : varchar
+  Unit : varchar
+}
+
+entity "PrtgChannelValue" as PrtgChannelValue {
+  --
+  PrtgServerAddressId : int
+  PrtgSensorId : int
+  PrtgChannelId : int
+  DateTime : datetime
+  Value : decimal
+}
+
+'---------------------------
+' Beziehungen zwischen den Entitäten
+
+' ServerAddress 1--* Group
+PrtgServerAddress ||--o{ PrtgGroup : "1-to-n"
+
+' ServerAddress 1--* Device
+PrtgServerAddress ||--o{ PrtgDevice : "1-to-n"
+
+' ServerAddress 1--* Sensor
+PrtgServerAddress ||--o{ PrtgSensor : "1-to-n"
+
+' ServerAddress 1--* Channel
+PrtgServerAddress ||--o{ PrtgChannel : "1-to-n"
+
+' ServerAddress 1--* ChannelValue
+PrtgServerAddress ||--o{ PrtgChannelValue : "1-to-n"
+
+' Group 1--* Device
+PrtgGroup ||--o{ PrtgDevice : "1-to-n"
+
+' Device 1--* Sensor
+PrtgDevice ||--o{ PrtgSensor : "1-to-n"
+
+' Sensor 1--* Channel
+PrtgSensor ||--o{ PrtgChannel : "1-to-n"
+
+' Sensor 1--* ChannelValue
+PrtgSensor ||--o{ PrtgChannelValue : "1-to-n"
+
+' Channel 1--* ChannelValue
+PrtgChannel ||--o{ PrtgChannelValue : "1-to-n"
+
+' --------------------------
+' Tag-Beziehungen (n:m über Join-Tabellen)
+
+' Group n--m Tag (via PrtgGroupTag)
+PrtgGroup }|--|{ PrtgGroupTag : "n-to-m"
+PrtgTag }|--|{ PrtgGroupTag : "n-to-m"
+
+' Device n--m Tag (via PrtgDeviceTag)
+PrtgDevice }|--|{ PrtgDeviceTag : "n-to-m"
+PrtgTag }|--|{ PrtgDeviceTag : "n-to-m"
+
+' Sensor n--m Tag (via PrtgSensorTag)
+PrtgSensor }|--|{ PrtgSensorTag : "n-to-m"
+PrtgTag }|--|{ PrtgSensorTag : "n-to-m"
+
+@enduml

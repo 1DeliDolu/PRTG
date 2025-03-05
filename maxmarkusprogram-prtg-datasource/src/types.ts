@@ -5,7 +5,7 @@ export enum QueryType {
   Metrics = 'metrics',
   Raw = 'raw',
   Text = 'text',
-  Manual = 'manual'  // Changed from 'selbts' to 'manual'
+  Manual = 'manual', 
 }
 
 export interface MyQuery extends DataQuery {
@@ -16,15 +16,19 @@ export interface MyQuery extends DataQuery {
   deviceId: string;
   sensor: string;
   sensorId: string;
+  channel: string;
+  channelArray: string[];
   manualMethod?: string;
   manualObjectId?: string;
-  channel: string;
-  channels: string[];
   property?: string;
   filterProperty?: string;
   includeGroupName?: boolean;
   includeDeviceName?: boolean;
   includeSensorName?: boolean;
+  isStreaming?: boolean;
+  streamInterval?: number;
+  refId: string;
+
 }
 
 
@@ -52,8 +56,6 @@ export const manualApiMethods: ManualApiMethod[] = [
     description: 'Retrieve system status information',
   },
 ];
-
-
 
 /**
  * These are options configured for each DataSource instance
@@ -152,6 +154,7 @@ export interface PRTGItemChannel {
   [key: string]: number | string;
   datetime: string;
 }
+
 
 /* ################################### Propert an filter prpoerty ################################################## */
 
