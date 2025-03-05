@@ -1,15 +1,16 @@
 {
   "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
-	  "type": "datasource",
+  "type": "datasource",
   "name": "PRTG",
   "id": "maxmarkusprogram-prtg-datasource",
   "metrics": true,
   "backend": true,
   "annotations": true,
-  "alerting": true,
   "logs": true,
   "tracing": true,
+  "streaming": true,
   "executable": "gpx_prtg",
+  "alerting": true,
   "info": {
     "description": "Grafana datasource plugin whit backend for PRTG",
     "author": {
@@ -17,7 +18,9 @@
       "email": "mustafa.ozdemir1408@gmail.com"
     },
     "keywords": [
-      "datasource","PRTG","grafana"
+      "datasource",
+      "PRTG",
+      "grafana"
     ],
     "logos": {
       "small": "img/logo.svg",

@@ -515,6 +515,7 @@ return (
             options={sensorOptions}
             value={sensor}
             onChange={onSensorChange}
+            
             width={47}
             allowCustomValue
             placeholder="Select Sensor or type '*'"
