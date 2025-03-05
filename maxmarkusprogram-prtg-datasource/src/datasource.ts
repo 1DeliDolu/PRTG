@@ -6,12 +6,17 @@ import {
   DataQueryRequest,
   DataQueryResponse,
   LiveChannelScope,
+  DataSourceWithSupplementaryQueriesSupport,
+  SupplementaryQueryOptions,
+  SupplementaryQueryType,
+  LogsSampleOptions,
 } from '@grafana/data';
 import { 
   DataSourceWithBackend, 
   getTemplateSrv,
   getGrafanaLiveSrv,
 } from '@grafana/runtime';
+import { cloneDeep } from 'lodash';
 import { Observable, from, merge } from 'rxjs';
 import {
   MyQuery,
@@ -20,9 +25,11 @@ import {
   PRTGDeviceListResponse,
   PRTGSensorListResponse,
   PRTGChannelListResponse,
+  QueryType
 } from './types'
 
-export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptions> {
+export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptions>
+  implements DataSourceWithSupplementaryQueriesSupport<MyQuery> {
   constructor(instanceSettings: DataSourceInstanceSettings<MyDataSourceOptions>) {
     super(instanceSettings);
   }
@@ -138,5 +145,76 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
     });
 
     return merge(...observables);
+  }
+
+  getSupportedSupplementaryQueryTypes(): SupplementaryQueryType[] {
+    return [SupplementaryQueryType.LogsSample];
+  }
+
+  getSupplementaryQuery(options: SupplementaryQueryOptions, query: MyQuery): MyQuery | undefined {
+    if (!this.getSupportedSupplementaryQueryTypes().includes(options.type)) {
+      return undefined;
+    }
+
+    switch (options.type) {
+      case SupplementaryQueryType.LogsSample:
+        return {
+          ...query,
+          refId: `logs-sample-${query.refId}`,
+          queryType: QueryType.Logs,
+          // Convert PRTG sensor data to log format
+          logLevel: 'info', // You can map sensor status to different log levels
+          logMessage: `${query.sensor || 'Unknown sensor'} - ${query.channel || 'All channels'}`
+        };
+      default:
+        return undefined;
+    }
+  }
+
+  getSupplementaryRequest(
+    type: SupplementaryQueryType,
+    request: DataQueryRequest<MyQuery>,
+    options?: SupplementaryQueryOptions
+  ): DataQueryRequest<MyQuery> | undefined {
+    if (!this.getSupportedSupplementaryQueryTypes().includes(type)) {
+      return undefined;
+    }
+
+    switch (type) {
+      case SupplementaryQueryType.LogsSample:
+        const logsSampleOption: LogsSampleOptions =
+          options?.type === SupplementaryQueryType.LogsSample ? options : { type };
+        return this.getLogsSampleDataProvider(request, logsSampleOption);
+      default:
+        return undefined;
+    }
+  }
+
+  private getLogsSampleDataProvider(
+    request: DataQueryRequest<MyQuery>,
+    options?: LogsSampleOptions
+  ): DataQueryRequest<MyQuery> | undefined {
+    const logsSampleRequest = cloneDeep(request);
+    const targets = logsSampleRequest.targets
+      .map((query) => this.getSupplementaryQuery(
+        { 
+          type: SupplementaryQueryType.LogsSample, 
+          limit: options?.limit || 100 
+        }, 
+        query
+      ))
+      .filter((query): query is MyQuery => !!query);
+
+    if (!targets.length) {
+      return undefined;
+    }
+
+    return {
+      ...logsSampleRequest,
+      targets,
+      // Ensure we're requesting data as logs
+      intervalMs: 1000, // 1 second interval for logs
+      maxDataPoints: options?.limit || 100,
+    };
   }
 }

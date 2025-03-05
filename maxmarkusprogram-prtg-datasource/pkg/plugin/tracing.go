@@ -60,7 +60,7 @@ func recordError(span trace.Span, err error, message string) {
 
 // wrapAPICall wraps an API call with tracing
 func wrapAPICall(ctx context.Context, name string, method string, params map[string]string, fn func() error) error {
-	ctx, span := tracing.DefaultTracer().Start(ctx, fmt.Sprintf("prtg.api.%s", name),
+	_, span := tracing.DefaultTracer().Start(ctx, fmt.Sprintf("prtg.api.%s", name),
 		trace.WithAttributes(attribute.String("api.type", "prtg")),
 	)
 	defer span.End()

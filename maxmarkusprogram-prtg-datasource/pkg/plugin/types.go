@@ -302,9 +302,6 @@ type queryModel struct {
 }
 
 /* =================================== DATASOURCE ============================================== */
-type MyDatasource struct{
-	queryHandler backend.QueryDataHandler
-}
 
 /* =================================== CACHE ITEM ============================================== */
 type cacheItem struct {

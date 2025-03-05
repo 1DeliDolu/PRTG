@@ -106,7 +106,7 @@ func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, quer
 
 /* =================================== METRICS HANDLER ======================================== */
 func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, timeRange backend.TimeRange, baseFrameName string) backend.DataResponse {
-	ctx, span := d.tracer.StartSpan(ctx, "handleMetricsQuery")
+	_, span := d.tracer.StartSpan(ctx, "handleMetricsQuery")
 	defer span.End()
 
 	queryStart := time.Now()

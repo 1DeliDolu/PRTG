@@ -5,7 +5,8 @@ export enum QueryType {
   Metrics = 'metrics',
   Raw = 'raw',
   Text = 'text',
-  Manual = 'manual', 
+  Manual = 'manual',
+  Logs = 'logs',
 }
 
 export interface MyQuery extends DataQuery {
@@ -28,7 +29,9 @@ export interface MyQuery extends DataQuery {
   isStreaming?: boolean;
   streamInterval?: number;
   refId: string;
-
+  // Add log specific fields
+  logLevel?: string;
+  logMessage?: string;
 }
 
 

@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/1DeliDolu/PRTG/maxmarkusprogram/prtg/pkg/models"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/datasource"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/experimental/concurrent"
 	"github.com/prometheus/client_golang/prometheus"
-    "github.com/1DeliDolu/PRTG/maxmarkusprogram/prtg/pkg/models"
 )
 
 // Logger interface defines the logging methods required by the datasource
@@ -108,9 +108,56 @@ func (d *Datasource) handleSingleQueryData(ctx context.Context, q concurrent.Que
 	return res
 }
 
+/*  ########################################### MaxConcurrentQueries ################################################### */
+
+const (
+	MaxConcurrentQueries = 25
+)
+
 func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	// Use the multiplexer instead of direct handling
-	return d.mux.QueryData(ctx, req)
+	// Check if number of queries exceeds the limit
+	if len(req.Queries) > MaxConcurrentQueries {
+		return &backend.QueryDataResponse{
+			Responses: map[string]backend.DataResponse{
+				req.Queries[0].RefID: {
+					Error: fmt.Errorf("number of concurrent queries (%d) exceeds maximum limit (%d)",
+						len(req.Queries), MaxConcurrentQueries),
+					Status: backend.StatusTooManyRequests,
+				},
+			},
+		}, nil
+	}
+
+	// Create a wait group to manage concurrent queries
+	var wg sync.WaitGroup
+	responses := make(map[string]backend.DataResponse)
+	responseLock := sync.Mutex{}
+
+	// Process each query concurrently
+	for _, q := range req.Queries {
+		wg.Add(1)
+		go func(query backend.DataQuery) {
+			defer wg.Done()
+
+			// Get response for the query
+			response := d.handleSingleQueryData(ctx, concurrent.Query{
+				DataQuery:     query,
+				PluginContext: req.PluginContext,
+			})
+
+			// Safely store the response
+			responseLock.Lock()
+			responses[query.RefID] = response
+			responseLock.Unlock()
+		}(q)
+	}
+
+	// Wait for all queries to complete
+	wg.Wait()
+
+	return &backend.QueryDataResponse{
+		Responses: responses,
+	}, nil
 }
 
 // Add these new methods to handle different query types
@@ -131,7 +178,7 @@ func (d *Datasource) handleMetricsQueryType(ctx context.Context, req *backend.Qu
 }
 
 func (d *Datasource) handleManualQueryType(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	ctx, span := d.tracer.StartSpan(ctx, "handleManualQueryType")
+	_, span := d.tracer.StartSpan(ctx, "handleManualQueryType")
 	defer span.End()
 
 	response := backend.NewQueryDataResponse()
