@@ -7,12 +7,15 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/datasource"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
+	"github.com/grafana/grafana-plugin-sdk-go/experimental/concurrent"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/1DeliDolu/PRTG/maxmarkusprogram/prtg/pkg/models"
+    "github.com/1DeliDolu/PRTG/maxmarkusprogram/prtg/pkg/models"
 )
 
 // Logger interface defines the logging methods required by the datasource
@@ -22,7 +25,20 @@ var (
 	_ backend.CheckHealthHandler    = (*Datasource)(nil)
 	_ instancemgmt.InstanceDisposer = (*Datasource)(nil)
 	_ backend.CallResourceHandler   = (*Datasource)(nil)
+	_ backend.StreamHandler         = (*Datasource)(nil) // Add streaming support
 )
+
+// Add queue and mutex at package level
+var (
+	requestQueue = make([]*ResourceRequest, 0)
+	queueLock    sync.Mutex
+)
+
+// Add new type for request handling
+type ResourceRequest struct {
+	Request *backend.CallResourceRequest
+	Sender  backend.CallResourceResponseSender
+}
 
 /*  ################################# NewDatasource #################################################### */
 func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
@@ -41,39 +57,130 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 	tracer := NewTracer(logger)
 	metrics := NewMetrics(prometheus.DefaultRegisterer)
 
-	return &Datasource{
+	ds := &Datasource{
 		baseURL: baseURL,
 		api:     NewApi(baseURL, config.Secrets.ApiKey, cacheTime, 10*time.Second),
 		logger:  logger,
 		tracer:  tracer,
 		metrics: metrics,
-	}, nil
-}
+	}
 
+	// Initialize query type multiplexer
+	queryTypeMux := datasource.NewQueryTypeMux()
+	queryTypeMux.HandleFunc("metrics", ds.handleMetricsQueryType)
+	queryTypeMux.HandleFunc("manual", ds.handleManualQueryType)
+	queryTypeMux.HandleFunc("text", ds.handlePropertyQueryType)
+	queryTypeMux.HandleFunc("raw", ds.handlePropertyQueryType)
+	queryTypeMux.HandleFunc("", ds.handleQueryFallback)
+
+	ds.mux = queryTypeMux
+	return ds, nil
+}
 
 /*  ########################################### Dispose ################################################### */
 func (d *Datasource) Dispose() {
 }
 
 /*  ########################################### QueryData ################################################### */
+func (d *Datasource) handleSingleQueryData(ctx context.Context, q concurrent.Query) backend.DataResponse {
+	// Start tracing span for single query
+	ctx, span := d.tracer.StartSpan(ctx, "handleSingleQueryData")
+	defer span.End()
+
+	start := time.Now()
+	d.logger.Debug("Processing concurrent query",
+		"refId", q.DataQuery.RefID, // Update: Using the correct field name
+	)
+
+	// Execute the query using existing query logic
+	res := d.query(ctx, q.PluginContext, q.DataQuery) // Update: Using the correct field names
+
+	// Record metrics and logging
+	duration := time.Since(start)
+	d.metrics.ObserveQueryDuration("single_query", duration.Seconds())
+	d.logger.Debug("Concurrent query processed",
+		"refId", q.DataQuery.RefID, // Update: Using the correct field name
+		"duration", duration,
+		"status", res.Status,
+		"hasError", res.Error != nil,
+	)
+
+	return res
+}
+
 func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	ctx, span := d.tracer.StartSpan(ctx, "QueryData")
+	// Use the multiplexer instead of direct handling
+	return d.mux.QueryData(ctx, req)
+}
+
+// Add these new methods to handle different query types
+func (d *Datasource) handleMetricsQueryType(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
+	ctx, span := d.tracer.StartSpan(ctx, "handleMetricsQueryType")
 	defer span.End()
 
 	response := backend.NewQueryDataResponse()
 
 	for _, q := range req.Queries {
-		start := time.Now()
-		d.logger.Debug("Processing query", "refID", q.RefID)
-
-		res := d.query(ctx, req.PluginContext, q)
-		response.Responses[q.RefID] = res
-
-		duration := time.Since(start).Seconds()
-		d.metrics.ObserveQueryDuration("query", duration)
+		response.Responses[q.RefID] = d.handleSingleQueryData(ctx, concurrent.Query{
+			DataQuery:     q,
+			PluginContext: req.PluginContext,
+		})
 	}
 
 	return response, nil
+}
+
+func (d *Datasource) handleManualQueryType(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
+	ctx, span := d.tracer.StartSpan(ctx, "handleManualQueryType")
+	defer span.End()
+
+	response := backend.NewQueryDataResponse()
+
+	for _, q := range req.Queries {
+		// Parse the query model
+		var qm queryModel
+		if err := json.Unmarshal(q.JSON, &qm); err != nil {
+			response.Responses[q.RefID] = backend.ErrDataResponse(backend.StatusBadRequest, "failed to parse query")
+			continue
+		}
+
+		// Call the existing manual query handler
+		response.Responses[q.RefID] = d.handleManualQuery(qm, q.TimeRange, fmt.Sprintf("manual_%s", q.RefID))
+	}
+
+	return response, nil
+}
+
+func (d *Datasource) handlePropertyQueryType(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
+	ctx, span := d.tracer.StartSpan(ctx, "handlePropertyQueryType")
+	defer span.End()
+
+	response := backend.NewQueryDataResponse()
+
+	for _, q := range req.Queries {
+		// Parse the query model
+		var qm queryModel
+		if err := json.Unmarshal(q.JSON, &qm); err != nil {
+			response.Responses[q.RefID] = backend.ErrDataResponse(backend.StatusBadRequest, "failed to parse query")
+			continue
+		}
+
+		// Call the existing property query handler
+		response.Responses[q.RefID] = d.handlePropertyQuery(
+			ctx,
+			qm,
+			qm.Property,
+			qm.FilterProperty,
+			fmt.Sprintf("property_%s", q.RefID),
+		)
+	}
+
+	return response, nil
+}
+
+func (d *Datasource) handleQueryFallback(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
+	d.logger.Warn("Query type not supported", "queries", len(req.Queries))
+	return backend.NewQueryDataResponse(), nil
 }
 
 /* ######################################## parsePRTGDateTime ##############################################################  */
@@ -204,54 +311,89 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 		"method", req.Method,
 	)
 
-	pathParts := strings.Split(req.Path, "/")
-	var err error
+	// Queue the incoming request
+	queueLock.Lock()
+	requestQueue = append(requestQueue, &ResourceRequest{
+		Request: req,
+		Sender:  sender,
+	})
+	queueLock.Unlock()
 
-	switch pathParts[0] {
-	case "groups":
-		err = d.handleGetGroups(sender)
-	case "devices":
-		if len(pathParts) < 2 {
-			d.logger.Error("Missing group parameter")
-			errorResponse := map[string]string{"error": "group parameter is required"}
-			errorJSON, _ := json.Marshal(errorResponse)
-			return sender.Send(&backend.CallResourceResponse{
-				Status:  http.StatusBadRequest,
-				Headers: map[string][]string{"Content-Type": {"application/json"}},
-				Body:    errorJSON,
-			})
-		}
-		err = d.handleGetDevices(sender, pathParts[1])
-	case "sensors":
-		if len(pathParts) < 2 {
-			errorResponse := map[string]string{"error": "device parameter is required"}
-			errorJSON, _ := json.Marshal(errorResponse)
-			return sender.Send(&backend.CallResourceResponse{
-				Status:  http.StatusBadRequest,
-				Headers: map[string][]string{"Content-Type": {"application/json"}},
-				Body:    errorJSON,
-			})
-		}
-		device := pathParts[1]
-		err = d.handleGetSensors(sender, device)
+	// Process queued requests
+	return d.processQueuedRequests()
+}
 
-	case "channels":
-		if len(pathParts) < 2 {
-			errorResponse := map[string]string{"error": "missing objid parameter"}
-			errorJSON, _ := json.Marshal(errorResponse)
-			return sender.Send(&backend.CallResourceResponse{
-				Status:  http.StatusBadRequest,
-				Headers: map[string][]string{"Content-Type": {"application/json"}},
-				Body:    errorJSON,
-			})
-		}
-		err = d.handleGetChannel(sender, pathParts[1])
-	default:
-		d.logger.Warn("Unknown resource path", "path", req.Path)
-		return sender.Send(&backend.CallResourceResponse{Status: http.StatusNotFound})
+func (d *Datasource) processQueuedRequests() error {
+	queueLock.Lock()
+	defer queueLock.Unlock()
+
+	if len(requestQueue) == 0 {
+		return nil
 	}
 
-	return err
+	// Define processing order
+	orderedPaths := []string{"groups", "devices", "sensors", "channels"}
+	var lastError error
+
+	// Process requests in order
+	for _, pathType := range orderedPaths {
+		for i := 0; i < len(requestQueue); i++ {
+			req := requestQueue[i]
+			pathParts := strings.Split(req.Request.Path, "/")
+
+			if pathParts[0] != pathType {
+				continue
+			}
+
+			// Process request based on type
+			var err error
+			switch pathType {
+			case "groups":
+				err = d.handleGetGroups(req.Sender)
+			case "devices":
+				if len(pathParts) < 2 {
+					err = sendErrorResponse(req.Sender, "group parameter is required", http.StatusBadRequest)
+				} else {
+					err = d.handleGetDevices(req.Sender, pathParts[1])
+				}
+			case "sensors":
+				if len(pathParts) < 2 {
+					err = sendErrorResponse(req.Sender, "device parameter is required", http.StatusBadRequest)
+				} else {
+					err = d.handleGetSensors(req.Sender, pathParts[1])
+				}
+			case "channels":
+				if len(pathParts) < 2 {
+					err = sendErrorResponse(req.Sender, "sensor parameter is required", http.StatusBadRequest)
+				} else {
+					err = d.handleGetChannel(req.Sender, pathParts[1])
+				}
+			}
+
+			if err != nil {
+				lastError = err
+				d.logger.Error("Error processing request",
+					"path", req.Request.Path,
+					"error", err)
+			}
+
+			// Remove processed request from queue
+			requestQueue = append(requestQueue[:i], requestQueue[i+1:]...)
+			i-- // Adjust index after removal
+		}
+	}
+
+	return lastError
+}
+
+func sendErrorResponse(sender backend.CallResourceResponseSender, message string, statusCode int) error {
+	errorResponse := map[string]string{"error": message}
+	errorJSON, _ := json.Marshal(errorResponse)
+	return sender.Send(&backend.CallResourceResponse{
+		Status:  statusCode,
+		Headers: map[string][]string{"Content-Type": {"application/json"}},
+		Body:    errorJSON,
+	})
 }
 
 func (d *Datasource) handleGetGroups(sender backend.CallResourceResponseSender) error {
@@ -353,8 +495,8 @@ func (d *Datasource) handleGetSensors(sender backend.CallResourceResponseSender,
 }
 
 /*  ########################################  handleGetChannel ########################################  */
-func (d *Datasource) handleGetChannel(sender backend.CallResourceResponseSender, objid string) error {
-	if objid == "" {
+func (d *Datasource) handleGetChannel(sender backend.CallResourceResponseSender, sensorId string) error {
+	if sensorId == "" {
 		errorResponse := map[string]string{"error": "missing objid parameter"}
 		errorJSON, _ := json.Marshal(errorResponse)
 		return sender.Send(&backend.CallResourceResponse{
@@ -363,7 +505,7 @@ func (d *Datasource) handleGetChannel(sender backend.CallResourceResponseSender,
 			Body:    errorJSON,
 		})
 	}
-	channels, err := d.api.GetChannels(objid)
+	channels, err := d.api.GetChannels(sensorId)
 	if err != nil {
 		errorResponse := map[string]string{"error": err.Error()}
 		errorJSON, _ := json.Marshal(errorResponse)

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -247,7 +248,6 @@ func (a *Api) GetChannels(objid string) (*PrtgChannelValueStruct, error) {
 		"id":         objid,
 		"columns":    "value_,datetime",
 		"usecaption": "true",
-		"count":      "50000",
 	}
 
 	body, err := a.baseExecuteRequest("historicdata.json", params)
@@ -388,4 +388,50 @@ func flattenJSON(prefix string, data interface{}, result *[]KeyValue) {
 			})
 		}
 	}
+}
+
+/* ====================================== ANNOTATION HANDLER ====================================== */
+func (a *Api) GetAnnotationData(query *AnnotationQuery) (*AnnotationResponse, error) {
+	// Get time range
+	fromTime := time.Unix(0, query.From*int64(time.Millisecond))
+	toTime := time.Unix(0, query.To*int64(time.Millisecond))
+
+	histData, err := a.GetHistoricalData(query.SensorID, fromTime, toTime)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch historical data for annotations: %w", err)
+	}
+
+	annotations := make([]Annotation, 0)
+	for i, data := range histData.HistData {
+		t, _, err := parsePRTGDateTime(data.Datetime)
+		if err != nil {
+			continue
+		}
+
+		// Create unique ID using datasource UID format
+		uid := fmt.Sprintf("uid:%s_%d", query.SensorID, i)
+
+		annotation := Annotation{
+			ID:      uid,
+			Time:    t.UnixMilli(),
+			TimeEnd: t.UnixMilli(),
+			Title:   fmt.Sprintf("Sensor: %s", query.SensorID),
+			Text:    formatAnnotationText("Value", fmt.Sprintf("%v", data.Value)),
+			Tags:    []string{"prtg", fmt.Sprintf("sensor:%s", query.SensorID)},
+			Type:    "annotation",
+			Data:    data.Value,
+		}
+
+		annotations = append(annotations, annotation)
+	}
+
+	// Apply limit after all filtering
+	if query.Limit > 0 && int64(len(annotations)) > query.Limit {
+		annotations = annotations[:query.Limit]
+	}
+
+	return &AnnotationResponse{
+		Annotations: annotations,
+		Total:       len(annotations),
+	}, nil
 }
