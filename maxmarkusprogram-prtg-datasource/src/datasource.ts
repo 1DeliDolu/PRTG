@@ -30,8 +30,10 @@ import {
 
 export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptions>
   implements DataSourceWithSupplementaryQueriesSupport<MyQuery> {
+    cacheTimeOut: number= 0;
   constructor(instanceSettings: DataSourceInstanceSettings<MyDataSourceOptions>) {
     super(instanceSettings);
+    this.cacheTimeOut = instanceSettings.jsonData.cacheTime || 0;
   }
 
   /* =================================== APPLYTEMPLATEVARIABLES ====================================== */
