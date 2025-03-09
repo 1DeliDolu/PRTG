@@ -108,7 +108,7 @@ To trigger the workflow we need to push a version tag to github. This can be ach
 1. Run `npm version <major|minor|patch>`
 2. Run `git push origin main --follow-tags`
 
-## Projet Path
+## Project create
 
 cd /mnt/d/Praxis/PRTG/maxmarkusprogram-prtg-datasource
 
@@ -194,7 +194,6 @@ git pull origin main
 git tag v1.0.0 
 git push origin v1.0.0
 ```
-
 
 **re-tag the release**
 
