@@ -244,7 +244,8 @@ func parsePRTGDateTime(datetime string) (time.Time, string, error) {
 
 	// PRTG sends times in local timezone, so we need to handle both formats
 	layouts := []string{
-		"02.01.2006 15:04:05",
+		"02.01.2006 15:04:05", //Case when PRTG send time in this format or
+		"2006-01-02 15:04:05", //case when PRTG send in this format
 		time.RFC3339,
 	}
 
