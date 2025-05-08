@@ -15,7 +15,6 @@ import (
 	"golang.org/x/text/language"
 )
 
-
 /* =================================== QUERY HANDLER ========================================== */
 // Modified to allow for mocking in tests
 func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
@@ -794,67 +793,6 @@ func formatAnnotationText(location, text string) string {
 		return fmt.Sprintf("[%s]\n%s", location, text)
 	}
 	return text
-}
-
-// Add stream handling methods
-func (d *Datasource) SubscribeStream(ctx context.Context, req *backend.SubscribeStreamRequest) (*backend.SubscribeStreamResponse, error) {
-	d.logger.Debug("Subscribe to stream", "path", req.Path)
-	return &backend.SubscribeStreamResponse{
-		Status: backend.SubscribeStreamStatusOK,
-	}, nil
-}
-
-func (d *Datasource) PublishStream(ctx context.Context, req *backend.PublishStreamRequest) (*backend.PublishStreamResponse, error) {
-	return &backend.PublishStreamResponse{
-		Status: backend.PublishStreamStatusPermissionDenied,
-	}, nil
-}
-
-func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamRequest, sender *backend.StreamSender) error {
-	var qm queryModel
-	if err := json.Unmarshal(req.Data, &qm); err != nil {
-		return err
-	}
-
-	ticker := time.NewTicker(time.Duration(qm.StreamInterval) * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			// Fetch current data from PRTG for the specified sensor and channels
-			historicalData, err := d.api.GetHistoricalData(qm.SensorId, time.Now().Add(-1*time.Minute), time.Now())
-			if err != nil {
-				d.logger.Error("Failed to fetch stream data", "error", err)
-				continue
-			}
-
-			if len(historicalData.HistData) > 0 {
-				latestData := historicalData.HistData[len(historicalData.HistData)-1]
-				currentTime := time.Now()
-
-				// Create a frame for each selected channel
-				for _, channelName := range qm.ChannelArray {
-					if val, exists := latestData.Value[channelName]; exists {
-						frame := data.NewFrame(
-							fmt.Sprintf("stream_%s_%s", qm.SensorId, channelName),
-							data.NewField("time", nil, []time.Time{currentTime}),
-							data.NewField("value", nil, []float64{toFloat64(val)}),
-						)
-						frame.SetMeta(&data.FrameMeta{
-							Channel: channelName,
-						})
-
-						if err := sender.SendFrame(frame, data.IncludeAll); err != nil {
-							d.logger.Error("Failed to send frame", "error", err)
-						}
-					}
-				}
-			}
-		}
-	}
 }
 
 // Helper function to convert interface{} to float64
