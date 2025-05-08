@@ -3,8 +3,6 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"time"
-
 	"github.com/grafana/grafana-plugin-sdk-go/backend/tracing"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -30,21 +28,6 @@ func (t *Tracer) AddAttribute(span trace.Span, key string, value interface{}) {
 	span.SetAttributes(attribute.String(key, fmt.Sprintf("%v", value)))
 }
 
-/* =================================== TRACE HELPERS ======================================== */
-
-// addAPIAttributes adds common API request attributes to a span
-func addAPIAttributes(span trace.Span, method, endpoint string, params map[string]string) {
-	attrs := []attribute.KeyValue{
-		attribute.String("api.method", method),
-		attribute.String("api.endpoint", endpoint),
-	}
-
-	for k, v := range params {
-		attrs = append(attrs, attribute.String("api.param."+k, v))
-	}
-
-	span.SetAttributes(attrs...)
-}
 
 // recordError adds error details to a span
 func recordError(span trace.Span, err error, message string) {
@@ -57,32 +40,6 @@ func recordError(span trace.Span, err error, message string) {
 }
 
 /* =================================== API TRACING ======================================== */
-
-// wrapAPICall wraps an API call with tracing
-func wrapAPICall(ctx context.Context, name string, method string, params map[string]string, fn func() error) error {
-	_, span := tracing.DefaultTracer().Start(ctx, fmt.Sprintf("prtg.api.%s", name),
-		trace.WithAttributes(attribute.String("api.type", "prtg")),
-	)
-	defer span.End()
-
-	addAPIAttributes(span, method, name, params)
-
-	startTime := time.Now()
-	err := fn()
-	duration := time.Since(startTime)
-
-	span.SetAttributes(
-		attribute.Float64("duration_ms", float64(duration.Milliseconds())),
-	)
-
-	if err != nil {
-		recordError(span, err, "API call failed")
-		return err
-	}
-
-	span.SetStatus(codes.Ok, "")
-	return nil
-}
 
 /* =================================== QUERY TRACING ======================================== */
 

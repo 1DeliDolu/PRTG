@@ -15,8 +15,52 @@ import (
 	"golang.org/x/text/language"
 )
 
+
 /* =================================== QUERY HANDLER ========================================== */
+// Modified to allow for mocking in tests
 func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
+	// Parse cache time from query JSON
+	var qm struct {
+		CacheTime int64 `json:"cacheTime"`
+	}
+	if err := json.Unmarshal(query.JSON, &qm); err != nil {
+		qm.CacheTime = 6000 // Default to 6 seconds if not specified
+	}
+
+	// Generate cache key including time range
+	cacheKey := QueryCacheKey{
+		RefID:     query.RefID,
+		QueryType: query.QueryType,
+		TimeRange: fmt.Sprintf("%v-%v", query.TimeRange.From.Unix(), query.TimeRange.To.Unix()),
+	}
+
+	// Check cache with proper expiration
+	d.cacheMutex.RLock()
+	if cached, exists := d.queryCache[cacheKey.String()]; exists &&
+		time.Now().Before(cached.ValidUntil) {
+		d.cacheMutex.RUnlock()
+		return cached.Response
+	}
+	d.cacheMutex.RUnlock()
+
+	// Execute query
+	response := d.executeQuery(ctx, pCtx, query)
+
+	// Cache successful responses
+	if response.Error == nil {
+		d.cacheMutex.Lock()
+		d.queryCache[cacheKey.String()] = &QueryCacheEntry{
+			Response:   response,
+			ValidUntil: time.Now().Add(time.Duration(qm.CacheTime) * time.Millisecond),
+		}
+		d.cacheMutex.Unlock()
+	}
+
+	return response
+}
+
+// Add this helper method
+func (d *Datasource) executeQuery(ctx context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
 	// Start tracing
 	ctx, span := d.tracer.StartSpan(ctx, "query")
 	defer span.End()
@@ -41,6 +85,44 @@ func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, quer
 		recordError(span, err, "Failed to parse query")
 		return backend.ErrDataResponse(backend.StatusBadRequest, "failed to parse query")
 	}
+
+	// Generate stable cache key that includes time range
+	cacheKey := QueryCacheKey{
+		RefID:      query.RefID,
+		QueryType:  query.QueryType,
+		SensorID:   qm.SensorId,
+		Channel:    strings.Join(qm.ChannelArray, ","),
+		TimeRange:  fmt.Sprintf("%v-%v", query.TimeRange.From.Unix(), query.TimeRange.To.Unix()),
+		Property:   qm.Property,
+		Parameters: string(query.JSON),
+	}
+
+	// Get cache duration from API
+	cacheTime := d.api.GetCacheTime()
+
+	// Calculate dynamic cache duration based on time range
+	timeRange := query.TimeRange.To.Sub(query.TimeRange.From)
+	var cacheDuration time.Duration
+
+	switch {
+	case timeRange <= time.Hour:
+		cacheDuration = 6 * time.Second
+	case timeRange <= 24*time.Hour:
+		cacheDuration = 30 * time.Second
+	default:
+		cacheDuration = cacheTime
+	}
+
+	// Use String() method to convert cacheKey to string
+	cacheKeyStr := cacheKey.String()
+
+	// Check cache with proper expiration
+	d.cacheMutex.RLock()
+	if entry, exists := d.queryCache[cacheKeyStr]; exists && time.Now().Before(entry.ValidUntil) {
+		d.cacheMutex.RUnlock()
+		return entry.Response
+	}
+	d.cacheMutex.RUnlock()
 
 	// Add query attributes to span
 	addQueryAttributes(span, qm)
@@ -67,6 +149,17 @@ func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, quer
 		}
 		response = d.handleMetricsQuery(ctx, qm, query.TimeRange, fmt.Sprintf("metrics_%s", query.RefID))
 
+		// Cache metrics queries for shorter duration to maintain stability
+		if response.Error == nil {
+			d.cacheMutex.Lock()
+			d.queryCache[cacheKey.String()] = &QueryCacheEntry{
+				Response:   response,
+				ValidUntil: time.Now().Add(25 * time.Second), // Cache for 5 seconds
+				Updating:   false,
+			}
+			d.cacheMutex.Unlock()
+		}
+
 	case "manual":
 		d.logger.Debug("Executing manual query",
 			"method", qm.ManualMethod,
@@ -88,6 +181,22 @@ func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, quer
 				data.NewFrame(fmt.Sprintf("unknown_%s", query.RefID)),
 			},
 		}
+	}
+
+	// Cache response with proper duration
+	if response.Error == nil {
+		d.cacheMutex.Lock()
+		d.queryCache[cacheKeyStr] = &QueryCacheEntry{
+			Response:   response,
+			ValidUntil: time.Now().Add(cacheDuration),
+			Updating:   false,
+		}
+		d.cacheMutex.Unlock()
+
+		d.logger.Debug("Cached response",
+			"key", cacheKeyStr,
+			"duration", cacheDuration,
+		)
 	}
 
 	// Record any errors in the response
@@ -202,12 +311,16 @@ func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, time
 			}),
 		)
 
+		// Add stability metadata with explicit time information
 		frame.Meta = &data.FrameMeta{
 			Type: data.FrameTypeTimeSeriesMulti,
 			Custom: map[string]interface{}{
-				"from":    timeRange.From.UnixMilli(),
-				"to":      timeRange.To.UnixMilli(),
-				"channel": channelName,
+				"from":     timeRange.From.UnixMilli(),
+				"to":       timeRange.To.UnixMilli(),
+				"channel":  channelName,
+				"stable":   true,
+				"duration": timeRange.To.Sub(timeRange.From).String(),
+				"timezone": "UTC",
 			},
 		}
 

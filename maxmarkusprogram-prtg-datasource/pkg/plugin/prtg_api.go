@@ -1,18 +1,15 @@
 package plugin
 
 import (
-	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 
 	"time"
 
-	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 )
 
@@ -25,13 +22,7 @@ func NewApi(baseURL, apiKey string, cacheTime, requestTimeout time.Duration) *Ap
 		cache:     make(map[string]cacheItem),
 	}
 }
-
-// Getter for the cache time
-func (a *Api) GetCacheTime() time.Duration {
-	return a.cacheTime
-}
-
-/* ====================================== URL BUILDER ====================================== */
+// buildApiUrl erstellt eine standardisierte PRTG-API-URL mit übergebenen Parametern.
 func (a *Api) buildApiUrl(method string, params map[string]string) (string, error) {
 	baseUrl := fmt.Sprintf("%s/api/%s", a.baseURL, method)
 	u, err := url.Parse(baseUrl)
@@ -40,118 +31,71 @@ func (a *Api) buildApiUrl(method string, params map[string]string) (string, erro
 	}
 
 	q := url.Values{}
-	q.Set("apiToken", a.apiKey)
+	q.Set("apitoken", a.apiKey)
 
 	for key, value := range params {
-		if key != "apiToken" { // Avoid duplicate apiToken
-			q.Set(key, value)
-		}
+		q.Set(key, value)
 	}
 
 	u.RawQuery = q.Encode()
 	return u.String(), nil
 }
 
+// SetTimeout aktualisiert das Timeout für API-Anfragen.
 func (a *Api) SetTimeout(timeout time.Duration) {
 	if timeout > 0 {
+		if timeout < 10*time.Second {
+			timeout = 10 * time.Second // Minimum 10 seconds
+		}
 		a.timeout = timeout
 	}
 }
 
-/* =================================== REQUEST EXECUTOR ====================================== */
+// baseExecuteRequest führt die HTTP-Anfrage durch und liefert den Response-Body.
 func (a *Api) baseExecuteRequest(endpoint string, params map[string]string) ([]byte, error) {
-	ctx := context.Background()
-	var responseBody []byte
-	var responseErr error
-
-	err := wrapAPICall(ctx, endpoint, "GET", params, func() error {
-		startTime := time.Now()
-
-		// Track API request
-		defer func() {
-			duration := time.Since(startTime).Seconds()
-			observeAPIRequestDuration(endpoint, duration)
-		}()
-
-		// Check cache
-		apiUrl, err := a.buildApiUrl(endpoint, params)
-		if err != nil {
-			incrementErrors("url_build")
-			return fmt.Errorf("failed to build URL: %w", err)
-		}
-
-		if a.cacheTime > 0 {
-			a.cacheMu.RLock()
-			if item, ok := a.cache[apiUrl]; ok && time.Now().Before(item.expiry) {
-				a.cacheMu.RUnlock()
-				incrementCacheMetric(true, endpoint)
-				responseBody = item.data
-				return nil
-			}
-			a.cacheMu.RUnlock()
-			incrementCacheMetric(false, endpoint)
-		}
-
-		client := &http.Client{
-			Timeout: a.timeout,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
-		}
-
-		req, err := http.NewRequest("GET", apiUrl, nil)
-		if err != nil {
-			return fmt.Errorf("failed to create request: %w", err)
-		}
-
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Accept", "application/json")
-
-		resp, err := client.Do(req)
-		if err != nil {
-			return fmt.Errorf("request failed: %w", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode == http.StatusForbidden {
-			log.DefaultLogger.Error("Access denied: please verify API token and permissions")
-			return fmt.Errorf("access denied: please verify API token and permissions")
-		}
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("failed to read response body: %w", err)
-		}
-
-		if a.cacheTime > 0 {
-			a.cacheMu.Lock()
-			a.cache[apiUrl] = cacheItem{
-				data:   body,
-				expiry: time.Now().Add(a.cacheTime),
-			}
-			a.cacheMu.Unlock()
-		}
-
-		if resp.StatusCode == http.StatusOK {
-			incrementAPIRequests(endpoint, "success")
-		} else {
-			incrementAPIRequests(endpoint, "error")
-			incrementErrors("http_" + strconv.Itoa(resp.StatusCode))
-		}
-
-		responseBody = body
-		responseErr = err
-		return err
-	})
-
+	apiUrl, err := a.buildApiUrl(endpoint, params)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to build URL: %w", err)
 	}
 
-	return responseBody, responseErr
+	client := &http.Client{
+		Timeout: a.timeout,
+		Transport: &http.Transport{
+			// Achtung: InsecureSkipVerify sollte in Produktionsumgebungen überprüft werden!
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	req, err := http.NewRequest("GET", apiUrl, nil)
+	if err != nil {
+		if err.Error() == "apitoken" {
+			return nil, fmt.Errorf("invalid or missing API token")
+		}
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusForbidden {
+		log.DefaultLogger.Error("Access denied: please verify API token and permissions")
+		return nil, fmt.Errorf("access denied: please verify API token and permissions")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+	return body, nil
 }
 
 /* ====================================== STATUS HANDLER ======================================== */
@@ -174,16 +118,33 @@ func (a *Api) GetGroups() (*PrtgGroupListResponse, error) {
 		"content": "groups",
 		"columns": "active,channel,datetime,device,group,message,objid,priority,sensor,status,tags",
 		"count":   "50000",
+		"output":  "json", // Explicitly request JSON output
 	}
 
 	body, err := a.baseExecuteRequest("table.json", params)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("API request failed: %w", err)
 	}
+
+	if len(body) == 0 {
+		return nil, fmt.Errorf("empty response from PRTG API")
+	}
+
+	// Log raw response for debugging
+	log.DefaultLogger.Debug("Raw PRTG response",
+		"endpoint", "groups",
+		"responseSize", len(body),
+		"response", string(body),
+	)
 
 	var response PrtgGroupListResponse
 	if err := json.Unmarshal(body, &response); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
+		return nil, fmt.Errorf("failed to parse response: %w, body: %s", err, string(body))
+	}
+
+	// Validate response
+	if response.Groups == nil {
+		return nil, fmt.Errorf("invalid response structure: groups array is nil")
 	}
 
 	return &response, nil
@@ -263,67 +224,115 @@ func (a *Api) GetChannels(objid string) (*PrtgChannelValueStruct, error) {
 	return &response, nil
 }
 
-/* ====================================== HISTORY HANDLER ======================================= */
+// GetHistoricalData ruft historische Daten für den angegebenen Sensor und Zeitraum ab.
 func (a *Api) GetHistoricalData(sensorID string, startDate, endDate time.Time) (*PrtgHistoricalDataResponse, error) {
+	// Input validation
 	if sensorID == "" {
 		return nil, fmt.Errorf("invalid query: missing sensor ID")
 	}
 
-	startTime := startDate.Add(time.Hour)
-	endTime := endDate.Add(time.Hour)
-
-	const format = "2006-01-02-15-04-05"
-	sdate := startTime.Format(format)
-	edate := endTime.Format(format)
-
-	hours := endTime.Sub(startTime).Hours()
-
-	if hours <= 0 {
-		return nil, fmt.Errorf("invalid time range: start date %v must be before end date %v", startTime, endTime)
+	// Convert to PRTG's timezone (Europe/Berlin)
+	loc, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		loc = time.Local
 	}
 
+	// Add a small buffer to ensure we don't miss data at day boundaries
+	localStartDate := startDate.In(loc).Add(-1 * time.Hour)
+	localEndDate := endDate.In(loc).Add(1 * time.Hour)
+
+	// Format dates for PRTG API
+	const format = "2006-01-02-15-04-05"
+	sdate := localStartDate.Format(format)
+	edate := localEndDate.Format(format)
+
+	// Calculate adjusted time range
+	hours := localEndDate.Sub(localStartDate).Hours()
+
+	// Rest of the averaging logic...
 	var avg string
 	switch {
-	case hours <= 24:
+	case hours <= 12:
 		avg = "0"
-	case hours <= 168:
+	case hours <= 24:
+		avg = "120"
+	case hours <= 48:
 		avg = "300"
-	case hours <= 744:
+	case hours <= 72:
+		avg = "600"
+	case hours <= 168:
+		avg = "900"
+	case hours <= 336:
+		avg = "1800"
+	case hours <= 720:
 		avg = "3600"
 	default:
 		avg = "86400"
 	}
 
-	backend.Logger.Debug(fmt.Sprintf("Average: %v, Total Hours: %v, Start Date (ISO): %v, End Date (ISO): %v",
-		avg,
-		hours,
-		startTime.Format(time.RFC3339),
-		endTime.Format(time.RFC3339)))
-
 	params := map[string]string{
 		"id":         sensorID,
 		"columns":    "datetime,value_",
+		"avg":        avg,
 		"sdate":      sdate,
 		"edate":      edate,
 		"count":      "50000",
-		"avg":        avg,
-		"pctshow":    "false",
-		"pctmode":    "false",
 		"usecaption": "1",
 	}
 
+	log.DefaultLogger.Debug("Requesting historical data",
+		"sensorID", sensorID,
+		"startDate", sdate,
+		"endDate", edate,
+		"avg", avg,
+	)
+
+	// Use cacheTime for response caching
+	cacheKey := fmt.Sprintf("hist_%s_%s_%s", sensorID, startDate.Format(time.RFC3339), endDate.Format(time.RFC3339))
+
+	// Check cache
+	a.cacheMu.RLock()
+	if cached, exists := a.cache[cacheKey]; exists && time.Now().Before(cached.expiry) {
+		a.cacheMu.RUnlock()
+		var response PrtgHistoricalDataResponse
+		if err := json.Unmarshal(cached.data, &response); err == nil {
+			return &response, nil
+		}
+	}
+	a.cacheMu.RUnlock()
+
+	// Make API request
 	body, err := a.baseExecuteRequest("historicdata.json", params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch historical data: %w", err)
 	}
 
+	// Parse response
 	var response PrtgHistoricalDataResponse
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
+	// Validate response
 	if len(response.HistData) == 0 {
-		return nil, fmt.Errorf("no data found for the given time range")
+		log.DefaultLogger.Debug("No data found for the given time range",
+			"sensorID", sensorID,
+			"startDate", startDate,
+			"endDate", endDate,
+		)
+		return &response, nil // Return empty response instead of error
+	}
+
+	// Cache the response
+	if len(response.HistData) > 0 {
+		a.cacheMu.Lock()
+		if data, err := json.Marshal(response); err == nil {
+			a.cache[cacheKey] = cacheItem{
+				data:   data,
+				expiry: time.Now().Add(a.cacheTime),
+			}
+		}
+		a.cacheMu.Unlock()
 	}
 
 	return &response, nil
@@ -416,7 +425,6 @@ func (a *Api) GetAnnotationData(query *AnnotationQuery) (*AnnotationResponse, er
 			Time:    t.UnixMilli(),
 			TimeEnd: t.UnixMilli(),
 			Title:   fmt.Sprintf("Sensor: %s", query.SensorID),
-			Text:    formatAnnotationText("Value", fmt.Sprintf("%v", data.Value)),
 			Tags:    []string{"prtg", fmt.Sprintf("sensor:%s", query.SensorID)},
 			Type:    "annotation",
 			Data:    data.Value,
@@ -434,4 +442,9 @@ func (a *Api) GetAnnotationData(query *AnnotationQuery) (*AnnotationResponse, er
 		Annotations: annotations,
 		Total:       len(annotations),
 	}, nil
+}
+
+// Add GetCacheTime method to implement PRTGAPI interface
+func (a *Api) GetCacheTime() time.Duration {
+	return a.cacheTime
 }

@@ -1,7 +1,8 @@
 import React, { ChangeEvent } from 'react';
 import { InlineField, Input, SecretInput } from '@grafana/ui';
 import { DataSourcePluginOptionsEditorProps } from '@grafana/data';
-import { MyDataSourceOptions, MySecureJsonData } from '../types';
+import { MyDataSourceOptions, MySecureJsonData , timezoneOptions } from '../types';
+import { Select } from '@grafana/ui';
 
 interface Props extends DataSourcePluginOptionsEditorProps<MyDataSourceOptions, MySecureJsonData> {}
 
@@ -53,6 +54,18 @@ export function ConfigEditor(props: Props) {
     });
   }
 
+  // Timezone selection handler
+  const onTimezoneChange = (selectedOption: any) => {
+    // Update the timezone directly when selection changes
+    onOptionsChange({
+      ...options,
+      jsonData: {
+        ...jsonData,
+        timezone: selectedOption.value,
+      },
+    });
+  };
+
   return (
     <>
       <InlineField label="Path" labelWidth={14} interactive tooltip={'Json field returned to frontend'}>
@@ -82,6 +95,14 @@ export function ConfigEditor(props: Props) {
           onChange={onCacheTimeChange}
           value={jsonData.cacheTime}
           placeholder="Enter the cache time"
+          width={60}
+        />
+      </InlineField>
+      <InlineField label="Timezone" labelWidth={14} interactive tooltip={'Select the timezone'} required>
+        <Select
+          options={timezoneOptions}
+          value={jsonData.timezone}
+          onChange={onTimezoneChange}
           width={60}
         />
       </InlineField>

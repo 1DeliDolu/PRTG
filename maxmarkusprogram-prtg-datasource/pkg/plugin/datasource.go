@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,14 +17,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Logger interface defines the logging methods required by the datasource
-
 var (
 	_ backend.QueryDataHandler      = (*Datasource)(nil)
 	_ backend.CheckHealthHandler    = (*Datasource)(nil)
 	_ instancemgmt.InstanceDisposer = (*Datasource)(nil)
 	_ backend.CallResourceHandler   = (*Datasource)(nil)
-	_ backend.StreamHandler         = (*Datasource)(nil) // Add streaming support
+	_ backend.StreamHandler         = (*Datasource)(nil)
 )
 
 // Add queue and mutex at package level
@@ -47,22 +44,32 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 		return nil, err
 	}
 
-	baseURL := fmt.Sprintf("https://%s", config.Path)
-	cacheTime := config.CacheTime
-	if cacheTime <= 0 {
-		cacheTime = 30 * time.Second
+	// Get cache time from settings with default
+	var cacheTime time.Duration = 60 * time.Second // default 60 seconds
+	if config.CacheTime > 0 {
+		cacheTime = config.CacheTime * time.Second
 	}
 
+	baseURL := fmt.Sprintf("https://%s", config.Path)
 	logger := NewLogger()
 	tracer := NewTracer(logger)
 	metrics := NewMetrics(prometheus.DefaultRegisterer)
 
+	// Use apitoken parameter name to match PRTG API requirements
 	ds := &Datasource{
-		baseURL: baseURL,
-		api:     NewApi(baseURL, config.Secrets.ApiKey, cacheTime, 10*time.Second),
-		logger:  logger,
-		tracer:  tracer,
-		metrics: metrics,
+		baseURL:    baseURL,
+		api:        NewApi(baseURL, config.Secrets.ApiKey, cacheTime, 10*time.Second),
+		logger:     logger,
+		tracer:     tracer,
+		metrics:    metrics,
+		queryCache: make(map[string]*QueryCacheEntry), // Updated initialization
+		cacheMutex: sync.RWMutex{},
+		cacheTime:  cacheTime,
+		streamManager: &streamManager{
+			streams:          make(map[string]*activeStream),
+			activeStreams:    make(map[string]map[string]*activeStream), // Map of panel -> streams
+			defaultCacheTime: cacheTime,                                 // Add default cache time to stream manager
+		},
 	}
 
 	// Initialize query type multiplexer
@@ -111,53 +118,69 @@ func (d *Datasource) handleSingleQueryData(ctx context.Context, q concurrent.Que
 /*  ########################################### MaxConcurrentQueries ################################################### */
 
 const (
-	MaxConcurrentQueries = 25
+	MaxConcurrentQueries = 10
 )
 
+// generateCacheKey creates a unique string key for caching query results
+func generateCacheKey(req *backend.QueryDataRequest) string {
+	var keyBuilder strings.Builder
+	for _, q := range req.Queries {
+		keyBuilder.WriteString(fmt.Sprintf("%s:%d:%d:%s;",
+			q.RefID,
+			q.TimeRange.From.UnixNano(),
+			q.TimeRange.To.UnixNano(),
+			string(q.JSON)))
+	}
+	return keyBuilder.String()
+}
+
 func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	// Check if number of queries exceeds the limit
+	// Handle the case of empty queries
+	if len(req.Queries) == 0 {
+		return &backend.QueryDataResponse{
+			Responses: make(map[string]backend.DataResponse),
+		}, nil
+	}
+
+	// Check maximum concurrent query limit
 	if len(req.Queries) > MaxConcurrentQueries {
 		return &backend.QueryDataResponse{
 			Responses: map[string]backend.DataResponse{
 				req.Queries[0].RefID: {
-					Error: fmt.Errorf("number of concurrent queries (%d) exceeds maximum limit (%d)",
-						len(req.Queries), MaxConcurrentQueries),
+					Error:  fmt.Errorf("query limit exceeded: %d/%d", len(req.Queries), MaxConcurrentQueries),
 					Status: backend.StatusTooManyRequests,
 				},
 			},
 		}, nil
 	}
 
-	// Create a wait group to manage concurrent queries
-	var wg sync.WaitGroup
-	responses := make(map[string]backend.DataResponse)
-	responseLock := sync.Mutex{}
+	// Generate a stable cache key
+	cacheKey := generateCacheKey(req)
+	d.cacheMutex.RLock()
+	if cached, exists := d.queryCache[cacheKey]; exists && time.Now().Before(cached.ValidUntil) {
+		d.cacheMutex.RUnlock()
+		response := backend.NewQueryDataResponse()
+		response.Responses[req.Queries[0].RefID] = cached.Response
+		return response, nil
+	}
+	d.cacheMutex.RUnlock()
 
-	// Process each query concurrently
-	for _, q := range req.Queries {
-		wg.Add(1)
-		go func(query backend.DataQuery) {
-			defer wg.Done()
-
-			// Get response for the query
-			response := d.handleSingleQueryData(ctx, concurrent.Query{
-				DataQuery:     query,
-				PluginContext: req.PluginContext,
-			})
-
-			// Safely store the response
-			responseLock.Lock()
-			responses[query.RefID] = response
-			responseLock.Unlock()
-		}(q)
+	// Handle query through multiplexer
+	response, err := d.mux.QueryData(ctx, req)
+	if err != nil {
+		return nil, err
 	}
 
-	// Wait for all queries to complete
-	wg.Wait()
+	// Cache the result
+	d.cacheMutex.Lock()
+	d.queryCache[cacheKey] = &QueryCacheEntry{
+		Response:   response.Responses[req.Queries[0].RefID],
+		ValidUntil: time.Now().Add(d.cacheTime),
+		Updating:   false,
+	}
+	d.cacheMutex.Unlock()
 
-	return &backend.QueryDataResponse{
-		Responses: responses,
-	}, nil
+	return response, nil
 }
 
 // Add these new methods to handle different query types
@@ -230,145 +253,37 @@ func (d *Datasource) handleQueryFallback(ctx context.Context, req *backend.Query
 	return backend.NewQueryDataResponse(), nil
 }
 
-/* ######################################## parsePRTGDateTime ##############################################################  */
-func parsePRTGDateTime(datetime string) (time.Time, string, error) {
-	// If the datetime contains a range (indicated by " - "), take the end time
-	if strings.Contains(datetime, " - ") {
-		parts := strings.Split(datetime, " - ")
-		if len(parts) == 2 {
-			datetime = strings.TrimSpace(parts[1])
-		}
-	}
-
-	backend.Logger.Debug(fmt.Sprintf("Parsing PRTG datetime: %s", datetime))
-
-	// PRTG sends times in local timezone, so we need to handle both formats
-	layouts := []string{
-		"02.01.2006 15:04:05",
-		time.RFC3339,
-	}
-
-	loc, err := time.LoadLocation("Europe/Berlin") // PRTG server's timezone
-	if err != nil {
-		loc = time.Local // Fallback to system local time if timezone not found
-	}
-
-	var parseErr error
-	for _, layout := range layouts {
-		parsedTime, err := time.ParseInLocation(layout, datetime, loc)
-		if err == nil {
-			// Convert to UTC for consistency
-			utcTime := parsedTime.UTC()
-			unixTime := utcTime.Unix()
-			return utcTime, strconv.FormatInt(unixTime, 10), nil
-		}
-		parseErr = err
-	}
-
-	backend.Logger.Error("Date parsing failed for all formats",
-		"datetime", datetime,
-		"error", parseErr)
-	return time.Time{}, "", fmt.Errorf("failed to parse time '%s': %w", datetime, parseErr)
-}
-
 /* ######################################## CheckHealth ##############################################################  */
 func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
-	ctx, span := d.tracer.StartSpan(ctx, "CheckHealth")
-	backend.Logger.Debug("CheckHealth", "ctx", ctx)
-	defer span.End()
+	_, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 
 	d.logger.Debug("Starting health check")
 
-	res := &backend.CheckHealthResult{}
-
-	// Load and validate settings
-	config, err := models.LoadPluginSettings(*req.PluginContext.DataSourceInstanceSettings)
-	if err != nil {
-		d.logger.Error("Failed to load plugin settings", "error", err)
-		res.Status = backend.HealthStatusError
-		res.Message = fmt.Sprintf("Configuration error: %v", err)
-		d.metrics.IncError("config_load")
-		return res, nil
-	}
-
-	// Validate API key
-	if config.Secrets.ApiKey == "" {
-		d.logger.Error("API key is missing in configuration")
-		res.Status = backend.HealthStatusError
-		res.Message = "API key is required but not configured"
-		d.metrics.IncError("missing_api_key")
-		return res, nil
-	}
-
-	// Check PRTG server connectivity
-	d.logger.Debug("Checking PRTG server connection", "url", d.baseURL)
 	status, err := d.api.GetStatusList()
 	if err != nil {
-		d.logger.Error("Failed to connect to PRTG server",
-			"error", err,
-			"url", d.baseURL,
-		)
-		res.Status = backend.HealthStatusError
-		res.Message = fmt.Sprintf("PRTG connection failed: %v", err)
-		d.metrics.IncError("connection_failed")
-		return res, nil
+		d.logger.Error("PRTG health check failed", "error", err)
+		return &backend.CheckHealthResult{
+			Status:  backend.HealthStatusError,
+			Message: fmt.Sprintf("PRTG API error: %s", err.Error()),
+		}, nil
 	}
 
-	// Validate PRTG response
-	if status == nil || status.Version == "" {
-		d.logger.Error("Invalid response from PRTG server")
-		res.Status = backend.HealthStatusError
-		res.Message = "Invalid response from PRTG server"
-		d.metrics.IncError("invalid_response")
-		return res, nil
-	}
-
-	// Success case
-	d.logger.Info("Health check successful",
-		"prtgVersion", status.Version,
-		"url", d.baseURL,
-	)
-	res.Status = backend.HealthStatusOk
-	res.Message = fmt.Sprintf("Data source is working. PRTG Version: %s", status.Version)
-	d.metrics.IncAPIRequest("health")
-
-	return res, nil
-}
-
-/* ######################################## CallResource ##############################################################  */
-func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResourceRequest, sender backend.CallResourceResponseSender) error {
-	ctx, span := d.tracer.StartSpan(ctx, "CallResource") // Now properly using ctx
-
-	backend.Logger.Debug("CallResource", "ctx", ctx)
-
-	defer span.End()
-
-	start := time.Now()
-	defer func() {
-		duration := time.Since(start)
-		d.metrics.ObserveAPILatency(req.Path, duration.Seconds())
-		d.logger.Info("Resource call completed",
-			"path", req.Path,
-			"duration", duration,
-		)
-	}()
-
-	d.logger.Debug("Resource call started",
-		"path", req.Path,
-		"method", req.Method,
-	)
-
-	// Queue the incoming request
-	queueLock.Lock()
-	requestQueue = append(requestQueue, &ResourceRequest{
-		Request: req,
-		Sender:  sender,
+	detailsJSON, _ := json.Marshal(map[string]interface{}{
+		"version":      status.Version,
+		"totalSensors": status.TotalSens,
 	})
-	queueLock.Unlock()
 
-	// Process queued requests
-	return d.processQueuedRequests()
+	return &backend.CheckHealthResult{
+		Status:      backend.HealthStatusOk,
+		Message:     fmt.Sprintf("Data source is working. PRTG Version: %s", status.Version),
+		JSONDetails: detailsJSON, // Fixed: Changed JsonDetails to JSONDetails
+	}, nil
 }
+
+/* ######################################## StreamHandler ##############################################################  */
+
+const MaxQueueSize = 100
 
 func (d *Datasource) processQueuedRequests() error {
 	queueLock.Lock()
@@ -378,59 +293,56 @@ func (d *Datasource) processQueuedRequests() error {
 		return nil
 	}
 
-	// Define processing order
-	orderedPaths := []string{"groups", "devices", "sensors", "channels"}
+	if len(requestQueue) > MaxQueueSize {
+		d.logger.Warn("Request queue overflow, dropping old requests")
+		requestQueue = requestQueue[len(requestQueue)-MaxQueueSize:]
+	}
+
 	var lastError error
-
-	// Process requests in order
-	for _, pathType := range orderedPaths {
-		for i := 0; i < len(requestQueue); i++ {
-			req := requestQueue[i]
-			pathParts := strings.Split(req.Request.Path, "/")
-
-			if pathParts[0] != pathType {
-				continue
-			}
-
-			// Process request based on type
-			var err error
-			switch pathType {
-			case "groups":
-				err = d.handleGetGroups(req.Sender)
-			case "devices":
-				if len(pathParts) < 2 {
-					err = sendErrorResponse(req.Sender, "group parameter is required", http.StatusBadRequest)
-				} else {
-					err = d.handleGetDevices(req.Sender, pathParts[1])
-				}
-			case "sensors":
-				if len(pathParts) < 2 {
-					err = sendErrorResponse(req.Sender, "device parameter is required", http.StatusBadRequest)
-				} else {
-					err = d.handleGetSensors(req.Sender, pathParts[1])
-				}
-			case "channels":
-				if len(pathParts) < 2 {
-					err = sendErrorResponse(req.Sender, "sensor parameter is required", http.StatusBadRequest)
-				} else {
-					err = d.handleGetChannel(req.Sender, pathParts[1])
-				}
-			}
-
-			if err != nil {
-				lastError = err
-				d.logger.Error("Error processing request",
-					"path", req.Request.Path,
-					"error", err)
-			}
-
-			// Remove processed request from queue
-			requestQueue = append(requestQueue[:i], requestQueue[i+1:]...)
-			i-- // Adjust index after removal
+	for _, req := range requestQueue {
+		err := d.processRequest(req)
+		if err != nil {
+			d.logger.Error("Failed to process request", "error", err)
+			lastError = err
 		}
 	}
 
+	requestQueue = requestQueue[:0]
 	return lastError
+}
+
+func (d *Datasource) processRequest(req *ResourceRequest) error {
+	path := req.Request.Path
+	d.logger.Debug("Processing request", "path", path)
+
+	switch {
+	case strings.HasPrefix(path, "groups"):
+		return d.handleGetGroups(req.Sender)
+
+	case strings.HasPrefix(path, "devices/"):
+		pathParts := strings.Split(path, "/")
+		if len(pathParts) < 2 {
+			return sendErrorResponse(req.Sender, "group parameter is required", http.StatusBadRequest)
+		}
+		return d.handleGetDevices(req.Sender, pathParts[1])
+
+	case strings.HasPrefix(path, "sensors/"):
+		pathParts := strings.Split(path, "/")
+		if len(pathParts) < 2 {
+			return sendErrorResponse(req.Sender, "device parameter is required", http.StatusBadRequest)
+		}
+		return d.handleGetSensors(req.Sender, pathParts[1])
+
+	case strings.HasPrefix(path, "channels/"):
+		pathParts := strings.Split(path, "/")
+		if len(pathParts) < 2 {
+			return sendErrorResponse(req.Sender, "sensor parameter is required", http.StatusBadRequest)
+		}
+		return d.handleGetChannel(req.Sender, pathParts[1])
+
+	default:
+		return sendErrorResponse(req.Sender, "invalid API endpoint", http.StatusNotFound)
+	}
 }
 
 func sendErrorResponse(sender backend.CallResourceResponseSender, message string, statusCode int) error {
@@ -443,139 +355,37 @@ func sendErrorResponse(sender backend.CallResourceResponseSender, message string
 	})
 }
 
-func (d *Datasource) handleGetGroups(sender backend.CallResourceResponseSender) error {
-	groups, err := d.api.GetGroups()
-	if err != nil {
-		return sender.Send(&backend.CallResourceResponse{
-			Status: http.StatusInternalServerError,
-			Body:   []byte(err.Error()),
-		})
+// Add helper method to track active streams by panel
+func (d *Datasource) trackStream(panelId string, streamId string, stream *activeStream) {
+	d.streamManager.mu.Lock()
+	defer d.streamManager.mu.Unlock()
+
+	// Initialize map for this panel if needed
+	if _, exists := d.streamManager.activeStreams[panelId]; !exists {
+		d.streamManager.activeStreams[panelId] = make(map[string]*activeStream)
 	}
-	body, err := json.Marshal(groups)
-	if err != nil {
-		return sender.Send(&backend.CallResourceResponse{
-			Status: http.StatusInternalServerError,
-			Body:   []byte(fmt.Sprintf("error marshaling groups: %v", err)),
-		})
-	}
-	return sender.Send(&backend.CallResourceResponse{
-		Status:  http.StatusOK,
-		Headers: map[string][]string{"Content-Type": {"application/json"}},
-		Body:    body,
-	})
+
+	// Add stream to both maps for quick lookup
+	d.streamManager.streams[streamId] = stream
+	d.streamManager.activeStreams[panelId][streamId] = stream
+
+	d.logger.Debug("Stream tracked",
+		"panelId", panelId,
+		"streamId", streamId,
+		"totalStreams", len(d.streamManager.streams),
+		"panelStreams", len(d.streamManager.activeStreams[panelId]))
 }
 
-/* ######################################### handleGetDevices ############################################################*/
-func (d *Datasource) handleGetDevices(sender backend.CallResourceResponseSender, group string) error {
-	if group == "" {
-		errorResponse := map[string]string{"error": "missing group parameter"}
-		errorJSON, _ := json.Marshal(errorResponse)
-		return sender.Send(&backend.CallResourceResponse{
-			Status:  http.StatusBadRequest,
-			Headers: map[string][]string{"Content-Type": {"application/json"}},
-			Body:    errorJSON,
-		})
-	}
+// Add helper method to get all streams for a panel
+func (d *Datasource) getStreamsByPanel(panelId string) []*activeStream {
+	d.streamManager.mu.RLock()
+	defer d.streamManager.mu.RUnlock()
 
-	devices, err := d.api.GetDevices(group)
-	if err != nil {
-		errorResponse := map[string]string{"error": err.Error()}
-		errorJSON, _ := json.Marshal(errorResponse)
-		return sender.Send(&backend.CallResourceResponse{
-			Status:  http.StatusInternalServerError,
-			Headers: map[string][]string{"Content-Type": {"application/json"}},
-			Body:    errorJSON,
-		})
+	result := make([]*activeStream, 0, 5) // Preallocate with common size
+	if panelStreams, exists := d.streamManager.activeStreams[panelId]; exists {
+		for _, stream := range panelStreams {
+			result = append(result, stream)
+		}
 	}
-
-	body, err := json.Marshal(devices)
-	if err != nil {
-		return sender.Send(&backend.CallResourceResponse{
-			Status: http.StatusInternalServerError,
-			Body:   []byte(fmt.Sprintf("error marshaling devices: %v", err)),
-		})
-	}
-
-	return sender.Send(&backend.CallResourceResponse{
-		Status:  http.StatusOK,
-		Headers: map[string][]string{"Content-Type": {"application/json"}},
-		Body:    body,
-	})
-}
-
-/* ######################################### handleGetSensors ############################################################*/
-func (d *Datasource) handleGetSensors(sender backend.CallResourceResponseSender, device string) error {
-	if device == "" {
-		errorResponse := map[string]string{"error": "missing device parameter"}
-		errorJSON, _ := json.Marshal(errorResponse)
-		return sender.Send(&backend.CallResourceResponse{
-			Status:  http.StatusBadRequest,
-			Headers: map[string][]string{"Content-Type": {"application/json"}},
-			Body:    errorJSON,
-		})
-	}
-
-	sensors, err := d.api.GetSensors(device)
-	if err != nil {
-		errorResponse := map[string]string{"error": err.Error()}
-		errorJSON, _ := json.Marshal(errorResponse)
-		return sender.Send(&backend.CallResourceResponse{
-			Status:  http.StatusInternalServerError,
-			Headers: map[string][]string{"Content-Type": {"application/json"}},
-			Body:    errorJSON,
-		})
-	}
-
-	body, err := json.Marshal(sensors)
-	if err != nil {
-		return sender.Send(&backend.CallResourceResponse{
-			Status: http.StatusInternalServerError,
-			Body:   []byte(fmt.Sprintf("error marshaling sensors: %v", err)),
-		})
-	}
-
-	return sender.Send(&backend.CallResourceResponse{
-		Status:  http.StatusOK,
-		Headers: map[string][]string{"Content-Type": {"application/json"}},
-		Body:    body,
-	})
-}
-
-/*  ########################################  handleGetChannel ########################################  */
-func (d *Datasource) handleGetChannel(sender backend.CallResourceResponseSender, sensorId string) error {
-	if sensorId == "" {
-		errorResponse := map[string]string{"error": "missing objid parameter"}
-		errorJSON, _ := json.Marshal(errorResponse)
-		return sender.Send(&backend.CallResourceResponse{
-			Status:  http.StatusBadRequest,
-			Headers: map[string][]string{"Content-Type": {"application/json"}},
-			Body:    errorJSON,
-		})
-	}
-	channels, err := d.api.GetChannels(sensorId)
-	if err != nil {
-		errorResponse := map[string]string{"error": err.Error()}
-		errorJSON, _ := json.Marshal(errorResponse)
-		return sender.Send(&backend.CallResourceResponse{
-			Status:  http.StatusInternalServerError,
-			Headers: map[string][]string{"Content-Type": {"application/json"}},
-			Body:    errorJSON,
-		})
-	}
-	body, err := json.Marshal(channels)
-	if err != nil {
-		errorResponse := map[string]string{"error": fmt.Sprintf("error marshaling channels: %v", err)}
-		errorJSON, _ := json.Marshal(errorResponse)
-		return sender.Send(&backend.CallResourceResponse{
-			Status:  http.StatusInternalServerError,
-			Headers: map[string][]string{"Content-Type": {"application/json"}},
-			Body:    errorJSON,
-		})
-	}
-	return sender.Send(&backend.CallResourceResponse{
-		Status:  http.StatusOK,
-		Headers: map[string][]string{"Content-Type": {"application/json"}},
-		Body:    body,
-	})
-
+	return result
 }
