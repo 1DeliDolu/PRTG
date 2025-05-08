@@ -16,12 +16,7 @@ var (
 			Help:      "Current number of active connections.",
 		},
 	)
-
-	// Metrics have been moved to the Metrics struct below
-	// Keeping only activeConnections as it's used in UpdateActiveConnections
 )
-
-
 
 /* =================================== METRICS STRUCT ======================================== */
 type Metrics struct {

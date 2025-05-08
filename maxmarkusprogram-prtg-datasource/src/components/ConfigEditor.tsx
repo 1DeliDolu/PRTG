@@ -54,15 +54,14 @@ export function ConfigEditor(props: Props) {
     });
   }
 
-  // Local timezone
-  // Replace the local timezone checkbox with a dropdown
-
-  const onTimezoneChange = (value: any) => {
+  // Timezone selection handler
+  const onTimezoneChange = (selectedOption: any) => {
+    // Update the timezone directly when selection changes
     onOptionsChange({
       ...options,
       jsonData: {
         ...jsonData,
-        timezone: value.value,
+        timezone: selectedOption.value,
       },
     });
   };

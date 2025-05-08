@@ -22,11 +22,7 @@ var (
 	_ backend.CheckHealthHandler    = (*Datasource)(nil)
 	_ instancemgmt.InstanceDisposer = (*Datasource)(nil)
 	_ backend.CallResourceHandler   = (*Datasource)(nil)
-<<<<<<< HEAD
-	_ backend.StreamHandler         = (*Datasource)(nil) // Add streaming support
-=======
 	_ backend.StreamHandler         = (*Datasource)(nil)
->>>>>>> 9c117b6 (local timezone selection)
 )
 
 // Add queue and mutex at package level
@@ -59,14 +55,8 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 	tracer := NewTracer(logger)
 	metrics := NewMetrics(prometheus.DefaultRegisterer)
 
+	// Use apitoken parameter name to match PRTG API requirements
 	ds := &Datasource{
-<<<<<<< HEAD
-		baseURL: baseURL,
-		api:     NewApi(baseURL, config.Secrets.ApiKey, cacheTime, 10*time.Second),
-		logger:  logger,
-		tracer:  tracer,
-		metrics: metrics,
-=======
 		baseURL:    baseURL,
 		api:        NewApi(baseURL, config.Secrets.ApiKey, cacheTime, 10*time.Second),
 		logger:     logger,
@@ -80,7 +70,6 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 			activeStreams:    make(map[string]map[string]*activeStream), // Map of panel -> streams
 			defaultCacheTime: cacheTime,                                 // Add default cache time to stream manager
 		},
->>>>>>> 9c117b6 (local timezone selection)
 	}
 
 	// Initialize query type multiplexer
@@ -129,77 +118,50 @@ func (d *Datasource) handleSingleQueryData(ctx context.Context, q concurrent.Que
 /*  ########################################### MaxConcurrentQueries ################################################### */
 
 const (
-<<<<<<< HEAD
-	MaxConcurrentQueries = 25
-)
-
-func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	// Check if number of queries exceeds the limit
-=======
 	MaxConcurrentQueries = 10
 )
 
+// generateCacheKey creates a unique string key for caching query results
+func generateCacheKey(req *backend.QueryDataRequest) string {
+	var keyBuilder strings.Builder
+	for _, q := range req.Queries {
+		keyBuilder.WriteString(fmt.Sprintf("%s:%d:%d:%s;",
+			q.RefID,
+			q.TimeRange.From.UnixNano(),
+			q.TimeRange.To.UnixNano(),
+			string(q.JSON)))
+	}
+	return keyBuilder.String()
+}
+
 func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
+	// Handle the case of empty queries
+	if len(req.Queries) == 0 {
+		return &backend.QueryDataResponse{
+			Responses: make(map[string]backend.DataResponse),
+		}, nil
+	}
+
 	// Check maximum concurrent query limit
->>>>>>> 9c117b6 (local timezone selection)
 	if len(req.Queries) > MaxConcurrentQueries {
 		return &backend.QueryDataResponse{
 			Responses: map[string]backend.DataResponse{
 				req.Queries[0].RefID: {
-<<<<<<< HEAD
-					Error: fmt.Errorf("number of concurrent queries (%d) exceeds maximum limit (%d)",
-						len(req.Queries), MaxConcurrentQueries),
-=======
 					Error:  fmt.Errorf("query limit exceeded: %d/%d", len(req.Queries), MaxConcurrentQueries),
->>>>>>> 9c117b6 (local timezone selection)
 					Status: backend.StatusTooManyRequests,
 				},
 			},
 		}, nil
 	}
 
-<<<<<<< HEAD
-	// Create a wait group to manage concurrent queries
-	var wg sync.WaitGroup
-	responses := make(map[string]backend.DataResponse)
-	responseLock := sync.Mutex{}
-
-	// Process each query concurrently
-	for _, q := range req.Queries {
-		wg.Add(1)
-		go func(query backend.DataQuery) {
-			defer wg.Done()
-
-			// Get response for the query
-			response := d.handleSingleQueryData(ctx, concurrent.Query{
-				DataQuery:     query,
-				PluginContext: req.PluginContext,
-			})
-
-			// Safely store the response
-			responseLock.Lock()
-			responses[query.RefID] = response
-			responseLock.Unlock()
-		}(q)
-	}
-
-	// Wait for all queries to complete
-	wg.Wait()
-
-	return &backend.QueryDataResponse{
-		Responses: responses,
-	}, nil
-=======
-	// Check cache first
-	cacheKey := fmt.Sprintf("query_%v", req)
+	// Generate a stable cache key
+	cacheKey := generateCacheKey(req)
 	d.cacheMutex.RLock()
 	if cached, exists := d.queryCache[cacheKey]; exists && time.Now().Before(cached.ValidUntil) {
 		d.cacheMutex.RUnlock()
-		return &backend.QueryDataResponse{
-			Responses: map[string]backend.DataResponse{
-				req.Queries[0].RefID: cached.Response,
-			},
-		}, nil
+		response := backend.NewQueryDataResponse()
+		response.Responses[req.Queries[0].RefID] = cached.Response
+		return response, nil
 	}
 	d.cacheMutex.RUnlock()
 
@@ -219,7 +181,6 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 	d.cacheMutex.Unlock()
 
 	return response, nil
->>>>>>> 9c117b6 (local timezone selection)
 }
 
 // Add these new methods to handle different query types
@@ -251,57 +212,6 @@ func (d *Datasource) handleManualQueryType(ctx context.Context, req *backend.Que
 		if err := json.Unmarshal(q.JSON, &qm); err != nil {
 			response.Responses[q.RefID] = backend.ErrDataResponse(backend.StatusBadRequest, "failed to parse query")
 			continue
-<<<<<<< HEAD
-		}
-
-		// Call the existing manual query handler
-		response.Responses[q.RefID] = d.handleManualQuery(qm, q.TimeRange, fmt.Sprintf("manual_%s", q.RefID))
-	}
-
-	return response, nil
-}
-
-func (d *Datasource) handlePropertyQueryType(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	ctx, span := d.tracer.StartSpan(ctx, "handlePropertyQueryType")
-	defer span.End()
-
-	response := backend.NewQueryDataResponse()
-
-	for _, q := range req.Queries {
-		// Parse the query model
-		var qm queryModel
-		if err := json.Unmarshal(q.JSON, &qm); err != nil {
-			response.Responses[q.RefID] = backend.ErrDataResponse(backend.StatusBadRequest, "failed to parse query")
-			continue
-		}
-
-		// Call the existing property query handler
-		response.Responses[q.RefID] = d.handlePropertyQuery(
-			ctx,
-			qm,
-			qm.Property,
-			qm.FilterProperty,
-			fmt.Sprintf("property_%s", q.RefID),
-		)
-	}
-
-	return response, nil
-}
-
-func (d *Datasource) handleQueryFallback(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	d.logger.Warn("Query type not supported", "queries", len(req.Queries))
-	return backend.NewQueryDataResponse(), nil
-}
-
-/* ######################################## parsePRTGDateTime ##############################################################  */
-func parsePRTGDateTime(datetime string) (time.Time, string, error) {
-	// If the datetime contains a range (indicated by " - "), take the end time
-	if strings.Contains(datetime, " - ") {
-		parts := strings.Split(datetime, " - ")
-		if len(parts) == 2 {
-			datetime = strings.TrimSpace(parts[1])
-=======
->>>>>>> 9c117b6 (local timezone selection)
 		}
 
 		// Call the existing manual query handler
@@ -388,91 +298,6 @@ func (d *Datasource) processQueuedRequests() error {
 		requestQueue = requestQueue[len(requestQueue)-MaxQueueSize:]
 	}
 
-<<<<<<< HEAD
-	// Queue the incoming request
-	queueLock.Lock()
-	requestQueue = append(requestQueue, &ResourceRequest{
-		Request: req,
-		Sender:  sender,
-	})
-	queueLock.Unlock()
-
-	// Process queued requests
-	return d.processQueuedRequests()
-}
-
-func (d *Datasource) processQueuedRequests() error {
-	queueLock.Lock()
-	defer queueLock.Unlock()
-
-	if len(requestQueue) == 0 {
-		return nil
-	}
-
-	// Define processing order
-	orderedPaths := []string{"groups", "devices", "sensors", "channels"}
-	var lastError error
-
-	// Process requests in order
-	for _, pathType := range orderedPaths {
-		for i := 0; i < len(requestQueue); i++ {
-			req := requestQueue[i]
-			pathParts := strings.Split(req.Request.Path, "/")
-
-			if pathParts[0] != pathType {
-				continue
-			}
-
-			// Process request based on type
-			var err error
-			switch pathType {
-			case "groups":
-				err = d.handleGetGroups(req.Sender)
-			case "devices":
-				if len(pathParts) < 2 {
-					err = sendErrorResponse(req.Sender, "group parameter is required", http.StatusBadRequest)
-				} else {
-					err = d.handleGetDevices(req.Sender, pathParts[1])
-				}
-			case "sensors":
-				if len(pathParts) < 2 {
-					err = sendErrorResponse(req.Sender, "device parameter is required", http.StatusBadRequest)
-				} else {
-					err = d.handleGetSensors(req.Sender, pathParts[1])
-				}
-			case "channels":
-				if len(pathParts) < 2 {
-					err = sendErrorResponse(req.Sender, "sensor parameter is required", http.StatusBadRequest)
-				} else {
-					err = d.handleGetChannel(req.Sender, pathParts[1])
-				}
-			}
-
-			if err != nil {
-				lastError = err
-				d.logger.Error("Error processing request",
-					"path", req.Request.Path,
-					"error", err)
-			}
-
-			// Remove processed request from queue
-			requestQueue = append(requestQueue[:i], requestQueue[i+1:]...)
-			i-- // Adjust index after removal
-		}
-	}
-
-	return lastError
-}
-
-func sendErrorResponse(sender backend.CallResourceResponseSender, message string, statusCode int) error {
-	errorResponse := map[string]string{"error": message}
-	errorJSON, _ := json.Marshal(errorResponse)
-	return sender.Send(&backend.CallResourceResponse{
-		Status:  statusCode,
-		Headers: map[string][]string{"Content-Type": {"application/json"}},
-		Body:    errorJSON,
-	})
-=======
 	var lastError error
 	for _, req := range requestQueue {
 		err := d.processRequest(req)
@@ -518,7 +343,6 @@ func (d *Datasource) processRequest(req *ResourceRequest) error {
 	default:
 		return sendErrorResponse(req.Sender, "invalid API endpoint", http.StatusNotFound)
 	}
->>>>>>> 9c117b6 (local timezone selection)
 }
 
 func sendErrorResponse(sender backend.CallResourceResponseSender, message string, statusCode int) error {
@@ -563,61 +387,5 @@ func (d *Datasource) getStreamsByPanel(panelId string) []*activeStream {
 			result = append(result, stream)
 		}
 	}
-<<<<<<< HEAD
-
-	body, err := json.Marshal(sensors)
-	if err != nil {
-		return sender.Send(&backend.CallResourceResponse{
-			Status: http.StatusInternalServerError,
-			Body:   []byte(fmt.Sprintf("error marshaling sensors: %v", err)),
-		})
-	}
-
-	return sender.Send(&backend.CallResourceResponse{
-		Status:  http.StatusOK,
-		Headers: map[string][]string{"Content-Type": {"application/json"}},
-		Body:    body,
-	})
-}
-
-/*  ########################################  handleGetChannel ########################################  */
-func (d *Datasource) handleGetChannel(sender backend.CallResourceResponseSender, sensorId string) error {
-	if sensorId == "" {
-		errorResponse := map[string]string{"error": "missing objid parameter"}
-		errorJSON, _ := json.Marshal(errorResponse)
-		return sender.Send(&backend.CallResourceResponse{
-			Status:  http.StatusBadRequest,
-			Headers: map[string][]string{"Content-Type": {"application/json"}},
-			Body:    errorJSON,
-		})
-	}
-	channels, err := d.api.GetChannels(sensorId)
-	if err != nil {
-		errorResponse := map[string]string{"error": err.Error()}
-		errorJSON, _ := json.Marshal(errorResponse)
-		return sender.Send(&backend.CallResourceResponse{
-			Status:  http.StatusInternalServerError,
-			Headers: map[string][]string{"Content-Type": {"application/json"}},
-			Body:    errorJSON,
-		})
-	}
-	body, err := json.Marshal(channels)
-	if err != nil {
-		errorResponse := map[string]string{"error": fmt.Sprintf("error marshaling channels: %v", err)}
-		errorJSON, _ := json.Marshal(errorResponse)
-		return sender.Send(&backend.CallResourceResponse{
-			Status:  http.StatusInternalServerError,
-			Headers: map[string][]string{"Content-Type": {"application/json"}},
-			Body:    errorJSON,
-		})
-	}
-	return sender.Send(&backend.CallResourceResponse{
-		Status:  http.StatusOK,
-		Headers: map[string][]string{"Content-Type": {"application/json"}},
-		Body:    body,
-	})
-
-=======
 	return result
->>>>>>> 9c117b6 (local timezone selection)
 }

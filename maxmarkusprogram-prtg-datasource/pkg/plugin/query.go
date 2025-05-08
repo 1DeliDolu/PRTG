@@ -15,7 +15,9 @@ import (
 	"golang.org/x/text/language"
 )
 
+
 /* =================================== QUERY HANDLER ========================================== */
+// Modified to allow for mocking in tests
 func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
 	// Parse cache time from query JSON
 	var qm struct {
@@ -309,14 +311,6 @@ func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, time
 			}),
 		)
 
-<<<<<<< HEAD
-		frame.Meta = &data.FrameMeta{
-			Type: data.FrameTypeTimeSeriesMulti,
-			Custom: map[string]interface{}{
-				"from":    timeRange.From.UnixMilli(),
-				"to":      timeRange.To.UnixMilli(),
-				"channel": channelName,
-=======
 		// Add stability metadata with explicit time information
 		frame.Meta = &data.FrameMeta{
 			Type: data.FrameTypeTimeSeriesMulti,
@@ -327,7 +321,6 @@ func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, time
 				"stable":   true,
 				"duration": timeRange.To.Sub(timeRange.From).String(),
 				"timezone": "UTC",
->>>>>>> 9c117b6 (local timezone selection)
 			},
 		}
 
@@ -694,185 +687,4 @@ func selectRawOrFormatted(isRaw bool, rawValue, formattedValue interface{}) inte
 		return rawValue
 	}
 	return formattedValue
-}
-
-// Update handleAnnotationQuery function
-func (d *Datasource) handleAnnotationQuery(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	// Parse the JSON query
-	var qm queryModel
-	if err := json.Unmarshal(req.Queries[0].JSON, &qm); err != nil {
-		return nil, fmt.Errorf("failed to parse annotation query: %w", err)
-	}
-
-	// Get time range from query model
-	fromMs := qm.From
-	toMs := qm.To
-
-	// Create annotation query with all Grafana parameters
-	query := &AnnotationQuery{
-		From:         fromMs, // Already in milliseconds
-		To:           toMs,   // Already in milliseconds
-		SensorID:     qm.SensorId,
-		Limit:        qm.Limit,
-		Tags:         qm.Tags,
-		DashboardID:  qm.DashboardID,
-		DashboardUID: qm.DashboardUID,
-		PanelID:      qm.PanelID,
-		Type:         "annotation",
-	}
-
-	// Apply defaults
-	if query.Limit == 0 {
-		query.Limit = 100
-	}
-
-	// Build location text
-	locationText := buildLocationText(qm)
-
-	// Get annotations from API
-	annotations, err := d.api.GetAnnotationData(query)
-	if err != nil {
-		d.logger.Error("Failed to get annotations", "error", err)
-		return &backend.QueryDataResponse{}, err
-	}
-
-	// Create response frame with all Grafana fields
-	frame := data.NewFrame("annotations",
-		data.NewField("begin", nil, []int64{}),
-		data.NewField("end", nil, []int64{}),
-		data.NewField("title", nil, []string{}),
-		data.NewField("text", nil, []string{}),
-		data.NewField("tags", nil, []string{}),
-		data.NewField("id", nil, []int64{}),
-		data.NewField("dashboardId", nil, []int64{}),
-		data.NewField("panelId", nil, []int64{}),
-	)
-
-	// Process annotations
-	for _, a := range annotations.Annotations {
-		title := getAnnotationTitle(qm)
-		text := formatAnnotationText(locationText, a.Text)
-
-		frame.AppendRow(
-			a.Time,    // Already in milliseconds
-			a.TimeEnd, // Already in milliseconds
-			title,
-			text,
-			strings.Join(a.Tags, ","),
-			a.ID,
-			query.DashboardID,
-			query.PanelID,
-		)
-	}
-
-	return &backend.QueryDataResponse{
-		Responses: map[string]backend.DataResponse{
-			req.Queries[0].RefID: {
-				Frames: []*data.Frame{frame},
-			},
-		},
-	}, nil
-}
-
-// Helper functions
-func buildLocationText(qm queryModel) string {
-	parts := make([]string, 0)
-	if qm.IncludeGroupName && qm.Group != "" {
-		parts = append(parts, qm.Group)
-	}
-	if qm.IncludeDeviceName && qm.Device != "" {
-		parts = append(parts, qm.Device)
-	}
-	if qm.IncludeSensorName && qm.Sensor != "" {
-		parts = append(parts, qm.Sensor)
-	}
-	return strings.Join(parts, " / ")
-}
-
-func getAnnotationTitle(qm queryModel) string {
-	if qm.Channel != "" {
-		return qm.Channel
-	}
-	return "PRTG Event"
-}
-
-func formatAnnotationText(location, text string) string {
-	if location != "" {
-		return fmt.Sprintf("[%s]\n%s", location, text)
-	}
-	return text
-}
-
-// Add stream handling methods
-func (d *Datasource) SubscribeStream(ctx context.Context, req *backend.SubscribeStreamRequest) (*backend.SubscribeStreamResponse, error) {
-	d.logger.Debug("Subscribe to stream", "path", req.Path)
-	return &backend.SubscribeStreamResponse{
-		Status: backend.SubscribeStreamStatusOK,
-	}, nil
-}
-
-func (d *Datasource) PublishStream(ctx context.Context, req *backend.PublishStreamRequest) (*backend.PublishStreamResponse, error) {
-	return &backend.PublishStreamResponse{
-		Status: backend.PublishStreamStatusPermissionDenied,
-	}, nil
-}
-
-func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamRequest, sender *backend.StreamSender) error {
-	var qm queryModel
-	if err := json.Unmarshal(req.Data, &qm); err != nil {
-		return err
-	}
-
-	ticker := time.NewTicker(time.Duration(qm.StreamInterval) * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			// Fetch current data from PRTG for the specified sensor and channels
-			historicalData, err := d.api.GetHistoricalData(qm.SensorId, time.Now().Add(-1*time.Minute), time.Now())
-			if err != nil {
-				d.logger.Error("Failed to fetch stream data", "error", err)
-				continue
-			}
-
-			if len(historicalData.HistData) > 0 {
-				latestData := historicalData.HistData[len(historicalData.HistData)-1]
-				currentTime := time.Now()
-
-				// Create a frame for each selected channel
-				for _, channelName := range qm.ChannelArray {
-					if val, exists := latestData.Value[channelName]; exists {
-						frame := data.NewFrame(
-							fmt.Sprintf("stream_%s_%s", qm.SensorId, channelName),
-							data.NewField("time", nil, []time.Time{currentTime}),
-							data.NewField("value", nil, []float64{toFloat64(val)}),
-						)
-						frame.SetMeta(&data.FrameMeta{
-							Channel: channelName,
-						})
-
-						if err := sender.SendFrame(frame, data.IncludeAll); err != nil {
-							d.logger.Error("Failed to send frame", "error", err)
-						}
-					}
-				}
-			}
-		}
-	}
-}
-
-// Helper function to convert interface{} to float64
-func toFloat64(v interface{}) float64 {
-	switch val := v.(type) {
-	case float64:
-		return val
-	case string:
-		if f, err := strconv.ParseFloat(val, 64); err == nil {
-			return f
-		}
-	}
-	return 0
 }

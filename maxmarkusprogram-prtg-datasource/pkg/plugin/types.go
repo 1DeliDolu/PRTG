@@ -7,10 +7,6 @@ import (
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
-<<<<<<< HEAD
-
-=======
->>>>>>> 9c117b6 (local timezone selection)
 )
 
 /* =================================== GROUP LIST RESPONSE ======================================== */
@@ -239,18 +235,6 @@ func (p *PrtgValues) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-<<<<<<< HEAD
-/* =================================== QUERY MODEL ============================================== */
-type Datasource struct {
-	baseURL string
-	api     PRTGAPI
-	logger  PrtgLogger
-	tracer  *Tracer
-	metrics *Metrics
-	mux     backend.QueryDataHandler // Add this field
-}
-=======
->>>>>>> 9c117b6 (local timezone selection)
 /* =================================== DATASOURCE INTERFACE ==================================== */
 type PRTGAPI interface {
 	GetGroups() (*PrtgGroupListResponse, error)
@@ -285,11 +269,7 @@ type queryModel struct {
 	Device            string   `json:"device"`
 	Sensor            string   `json:"sensor"`
 	Channel           string   `json:"channel"`
-<<<<<<< HEAD
-	ChannelArray	  []string `json:"channelArray"`
-=======
 	ChannelArray      []string `json:"channelArray"`
->>>>>>> 9c117b6 (local timezone selection)
 	Property          string   `json:"property"`
 	FilterProperty    string   `json:"filterProperty"`
 	IncludeGroupName  bool     `json:"includeGroupName"`
@@ -306,14 +286,8 @@ type queryModel struct {
 	PanelID           int64    `json:"panelId"`
 	IsStreaming       bool     `json:"isStreaming"`
 	StreamInterval    int64    `json:"streamInterval"`
-<<<<<<< HEAD
-	RefID 		      string   `json:"refId"`
-
-	
-=======
 	UpdateMode        string   `json:"updateMode"` // Add this field for stream update mode
 	RefID             string   `json:"refId"`
->>>>>>> 9c117b6 (local timezone selection)
 }
 
 /* =================================== DATASOURCE ============================================== */
@@ -374,16 +348,6 @@ type AnnotationQuery struct {
 }
 
 type Annotation struct {
-<<<<<<< HEAD
-	ID           string                 `json:"id"`           // Changed to string for UID
-	Time         int64                  `json:"time"`
-	TimeEnd      int64                  `json:"timeEnd"`
-	Title        string                 `json:"title"`
-	Text         string                 `json:"text"`
-	Tags         []string               `json:"tags"`
-	Type         string                 `json:"type,omitempty"`
-	Data         map[string]interface{} `json:"data,omitempty"`
-=======
 	ID      string                 `json:"id"` // Changed to string for UID
 	Time    int64                  `json:"time"`
 	TimeEnd int64                  `json:"timeEnd"`
@@ -392,7 +356,6 @@ type Annotation struct {
 	Tags    []string               `json:"tags"`
 	Type    string                 `json:"type,omitempty"`
 	Data    map[string]interface{} `json:"data,omitempty"`
->>>>>>> 9c117b6 (local timezone selection)
 }
 
 type AnnotationResponse struct {
@@ -400,10 +363,6 @@ type AnnotationResponse struct {
 	Total       int          `json:"total"`
 }
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 9c117b6 (local timezone selection)
 type PrtgAnnotationResponse struct {
 	Annotations []PrtgAnnotation `json:"annotations"`
 }
@@ -414,9 +373,6 @@ type PrtgAnnotation struct {
 	TimeEnd int64    `json:"timeEnd"`
 	Text    string   `json:"text"`
 	Tags    []string `json:"tags"`
-<<<<<<< HEAD
-}
-=======
 }
 
 /* =================================== QUERY CACHE ============================================== */
@@ -503,7 +459,7 @@ type activeStream struct {
 	updateMode        string
 	bufferSize        int64
 	errorCount        int
-	lastDataTimestamp int64      // Track when data was last sent successfully
+	lastDataTimestamp int64 // Track when data was last sent successfully
 }
 
 /* =================================== QUERY MODEL ============================================== */
@@ -519,5 +475,3 @@ type Datasource struct {
 	cacheTime     time.Duration
 	streamManager *streamManager
 }
-
->>>>>>> 9c117b6 (local timezone selection)

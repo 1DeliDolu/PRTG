@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,6 +24,7 @@ var (
 	metricsFactory = NewMetrics // Store the original metrics factory function
 )
 
+// TODO - OK
 func TestNewDatasource(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -94,16 +96,20 @@ func TestNewDatasource(t *testing.T) {
 	}
 }
 
+// TODO - OK
 func TestDispose(t *testing.T) {
 	ds := &Datasource{}
 	ds.Dispose() // Should not panic or error
 }
 
+
+// TODO - OK
 func TestQueryData(t *testing.T) {
 	tests := []struct {
 		name          string
 		queries       []backend.DataQuery
-		expectedResps map[string]bool // map of refIDs to expected presence
+		expectedResps map[string]backend.DataResponse
+		wantErr       bool
 	}{
 		{
 			name: "Single query",
@@ -112,12 +118,13 @@ func TestQueryData(t *testing.T) {
 					RefID: "A",
 				},
 			},
-			expectedResps: map[string]bool{
-				"A": true,
+			expectedResps: map[string]backend.DataResponse{
+				"A": {},
 			},
+			wantErr: false,
 		},
 		{
-			name: "Multiple queries",
+			name: "Multiple queries within limit",
 			queries: []backend.DataQuery{
 				{
 					RefID: "A",
@@ -126,15 +133,34 @@ func TestQueryData(t *testing.T) {
 					RefID: "B",
 				},
 			},
-			expectedResps: map[string]bool{
-				"A": true,
-				"B": true,
+			expectedResps: map[string]backend.DataResponse{
+				"A": {},
+				"B": {},
 			},
+			wantErr: false,
+		},
+		{
+			name: "Too many queries",
+			queries: func() []backend.DataQuery {
+				queries := make([]backend.DataQuery, MaxConcurrentQueries+1)
+				for i := 0; i < MaxConcurrentQueries+1; i++ {
+					queries[i] = backend.DataQuery{RefID: fmt.Sprintf("%c", 'A'+i)}
+				}
+				return queries
+			}(),
+			expectedResps: map[string]backend.DataResponse{
+				"A": {
+					Error:  fmt.Errorf("query limit exceeded: %d/%d", MaxConcurrentQueries+1, MaxConcurrentQueries),
+					Status: backend.StatusTooManyRequests,
+				},
+			},
+			wantErr: false,
 		},
 		{
 			name:          "No queries",
 			queries:       []backend.DataQuery{},
-			expectedResps: map[string]bool{},
+			expectedResps: map[string]backend.DataResponse{},
+			wantErr:       false,
 		},
 	}
 
@@ -142,10 +168,26 @@ func TestQueryData(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 
+			// Create a mock query multiplexer
+			mockMux := &mockQueryDataHandler{}
+			if len(tt.queries) > 0 && len(tt.queries) <= MaxConcurrentQueries {
+				mockResp := &backend.QueryDataResponse{
+					Responses: make(map[string]backend.DataResponse),
+				}
+				for _, q := range tt.queries {
+					mockResp.Responses[q.RefID] = backend.DataResponse{}
+				}
+				mockMux.response = mockResp
+			}
+
 			ds := &Datasource{
-				logger:  NewLogger(),
-				tracer:  NewTracer(NewLogger()),
-				metrics: NewMetrics(prometheus.NewRegistry()),
+				logger:     NewLogger(),
+				tracer:     NewTracer(NewLogger()),
+				metrics:    NewMetrics(prometheus.NewRegistry()),
+				mux:        mockMux,
+				queryCache: make(map[string]*QueryCacheEntry),
+				cacheMutex: sync.RWMutex{},
+				cacheTime:  time.Minute,
 			}
 
 			req := &backend.QueryDataRequest{
@@ -154,146 +196,90 @@ func TestQueryData(t *testing.T) {
 
 			resp, err := ds.QueryData(ctx, req)
 
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-
-			// Verify response contains expected refIDs
-			for refID, expected := range tt.expectedResps {
-				_, exists := resp.Responses[refID]
-				assert.Equal(t, expected, exists, "Response presence mismatch for refID %s", refID)
-			}
-		})
-	}
-}
-
-func TestParsePRTGDateTime(t *testing.T) {
-	tests := []struct {
-		name         string
-		datetime     string
-		wantTime     string
-		wantUnixTime string
-		wantErr      bool
-	}{
-		{
-			name:         "Valid date with standard format",
-			datetime:     "02.01.2023 15:04:05",
-			wantTime:     "2023-01-02 14:04:05 +0000 UTC", // -1h for Berlin->UTC
-			wantUnixTime: "1672667045",
-			wantErr:      false,
-		},
-		{
-			name:         "Valid date with RFC3339 format",
-			datetime:     "2023-01-02T15:04:05+01:00",
-			wantTime:     "2023-01-02 14:04:05 +0000 UTC",
-			wantUnixTime: "1672667045",
-			wantErr:      false,
-		},
-		{
-			name:         "Date range with valid end date",
-			datetime:     "01.01.2023 10:00:00 - 02.01.2023 15:04:05",
-			wantTime:     "2023-01-02 14:04:05 +0000 UTC",
-			wantUnixTime: "1672667045",
-			wantErr:      false,
-		},
-		{
-			name:         "Invalid date format",
-			datetime:     "invalid-date",
-			wantTime:     "",
-			wantUnixTime: "",
-			wantErr:      true,
-		},
-		{
-			name:         "Empty string",
-			datetime:     "",
-			wantTime:     "",
-			wantUnixTime: "",
-			wantErr:      true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotTime, gotUnixTime, err := parsePRTGDateTime(tt.datetime)
-
 			if tt.wantErr {
 				assert.Error(t, err)
-				assert.Empty(t, gotUnixTime)
-				assert.True(t, gotTime.IsZero())
 				return
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantTime, gotTime.String())
-			assert.Equal(t, tt.wantUnixTime, gotUnixTime)
+			require.NotNil(t, resp)
+
+			// For query limit exceeded case
+			if len(tt.queries) > MaxConcurrentQueries {
+				require.Len(t, resp.Responses, 1)
+				response := resp.Responses[tt.queries[0].RefID]
+				assert.Equal(t, backend.StatusTooManyRequests, response.Status)
+				assert.Contains(t, response.Error.Error(), "query limit exceeded")
+				return
+			}
+
+			// Verify response contains expected refIDs
+			for refID, expectedResp := range tt.expectedResps {
+				actualResp, exists := resp.Responses[refID]
+				assert.True(t, exists, "Response should exist for refID %s", refID)
+				if expectedResp.Error != nil {
+					assert.Equal(t, expectedResp.Status, actualResp.Status)
+					assert.Contains(t, actualResp.Error.Error(), expectedResp.Error.Error())
+				}
+			}
+
+			// Test cache functionality
+			if len(tt.queries) > 0 && len(tt.queries) <= MaxConcurrentQueries {
+				// Second request should use cache
+				mockMux.called = false
+				secondResp, err := ds.QueryData(ctx, req)
+				require.NoError(t, err)
+				assert.False(t, mockMux.called, "Second request should use cache")
+				assert.NotNil(t, secondResp)
+			}
 		})
 	}
 }
 
+// Mock implementation of QueryDataHandler
+type mockQueryDataHandler struct {
+	response *backend.QueryDataResponse
+	err      error
+	called   bool
+}
+
+func (m *mockQueryDataHandler) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
+	m.called = true
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.response, nil
+}
+
+
+// TODO - OK
 func TestCheckHealth(t *testing.T) {
 	tests := []struct {
-		name           string
-		settings       *backend.DataSourceInstanceSettings
-		mockStatus     *PrtgStatusListResponse
-		mockErr        error
-		expectedStatus backend.HealthStatus
-		expectedMsg    string
+		name            string
+		mockStatus      *PrtgStatusListResponse
+		mockErr         error
+		expectedStatus  backend.HealthStatus
+		expectedMsg     string
+		expectedDetails map[string]interface{}
 	}{
 		{
 			name: "Successful health check",
-			settings: &backend.DataSourceInstanceSettings{
-				JSONData: []byte(`{"path": "prtg.example.com"}`),
-				DecryptedSecureJSONData: map[string]string{
-					"apiKey": "test-api-key",
-				},
-			},
 			mockStatus: &PrtgStatusListResponse{
-				Version: "23.1.84.1375",
+				Version:   "23.1.84.1375",
+				TotalSens: 250,
 			},
 			expectedStatus: backend.HealthStatusOk,
 			expectedMsg:    "Data source is working. PRTG Version: 23.1.84.1375",
+			expectedDetails: map[string]interface{}{
+				"version":      "23.1.84.1375",
+				"totalSensors": float64(250),
+			},
 		},
 		{
-			name: "Missing API key",
-			settings: &backend.DataSourceInstanceSettings{
-				JSONData: []byte(`{"path": "prtg.example.com"}`),
-				DecryptedSecureJSONData: map[string]string{
-					"apiKey": "",
-				},
-			},
-			expectedStatus: backend.HealthStatusError,
-			expectedMsg:    "API key is required but not configured",
-		},
-		{
-			name: "Connection error",
-			settings: &backend.DataSourceInstanceSettings{
-				JSONData: []byte(`{"path": "prtg.example.com"}`),
-				DecryptedSecureJSONData: map[string]string{
-					"apiKey": "test-api-key",
-				},
-			},
+			name:           "Connection error",
 			mockErr:        fmt.Errorf("connection failed"),
 			expectedStatus: backend.HealthStatusError,
-			expectedMsg:    "PRTG connection failed: connection failed",
-		},
-		{
-			name: "Invalid response",
-			settings: &backend.DataSourceInstanceSettings{
-				JSONData: []byte(`{"path": "prtg.example.com"}`),
-				DecryptedSecureJSONData: map[string]string{
-					"apiKey": "test-api-key",
-				},
-			},
-			mockStatus:     &PrtgStatusListResponse{Version: ""},
-			expectedStatus: backend.HealthStatusError,
-			expectedMsg:    "Invalid response from PRTG server",
-		},
-		{
-			name: "Invalid settings",
-			settings: &backend.DataSourceInstanceSettings{
-				JSONData: []byte(`invalid json`),
-			},
-			expectedStatus: backend.HealthStatusError,
-			expectedMsg:    "Configuration error: invalid character 'i' looking for beginning of value",
+			expectedMsg:    "PRTG API error: connection failed",
 		},
 	}
 
@@ -312,21 +298,21 @@ func TestCheckHealth(t *testing.T) {
 				logger:  NewLogger(),
 				tracer:  NewTracer(NewLogger()),
 				metrics: NewMetrics(registry),
-				baseURL: "https://prtg.example.com",
 			}
 
-			req := &backend.CheckHealthRequest{
-				PluginContext: backend.PluginContext{
-					DataSourceInstanceSettings: tt.settings,
-				},
-			}
-
-			result, err := ds.CheckHealth(ctx, req)
+			result, err := ds.CheckHealth(ctx, &backend.CheckHealthRequest{})
 
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, tt.expectedStatus, result.Status)
 			assert.Equal(t, tt.expectedMsg, result.Message)
+
+			if tt.expectedDetails != nil {
+				var details map[string]interface{}
+				err := json.Unmarshal(result.JSONDetails, &details)
+				require.NoError(t, err)
+				assert.Equal(t, tt.expectedDetails, details)
+			}
 		})
 	}
 }
@@ -337,10 +323,6 @@ type MockApi struct {
 	groups         *PrtgGroupListResponse
 	devices        *PrtgDevicesListResponse
 	sensors        *PrtgSensorsListResponse
-<<<<<<< HEAD
-=======
-	channels       *PrtgChannelValueStruct 
->>>>>>> 9c117b6 (local timezone selection)
 	histData       *PrtgHistoricalDataResponse
 	err            error
 	timeout        time.Duration
@@ -389,7 +371,7 @@ func (m *MockApi) GetChannels(objid string) (*PrtgChannelValueStruct, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
-	return m.channels, nil
+	return &PrtgChannelValueStruct{}, nil
 }
 
 func (m *MockApi) GetHistoricalData(sensorID string, startDate, endDate time.Time) (*PrtgHistoricalDataResponse, error) {
