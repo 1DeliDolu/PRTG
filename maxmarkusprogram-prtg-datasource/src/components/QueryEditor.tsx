@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback, ChangeEvent } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, ChangeEvent, useRef } from 'react';
 import {
   InlineField,
   Select,
@@ -15,7 +15,17 @@ import { MyDataSourceOptions, MyQuery, queryTypeOptions, QueryType, propertyList
 type Props = QueryEditorProps<DataSource, MyQuery, MyDataSourceOptions>
 
 export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) {
+  const prevQueryRef = useRef<MyQuery | null>(null);
 
+  const runQueryIfChanged = useCallback(() => {
+    const currentQuery = JSON.stringify(query);
+    const prevQuery = JSON.stringify(prevQueryRef.current);
+
+    if (currentQuery !== prevQuery) {
+      prevQueryRef.current = query;
+      onRunQuery();
+    }
+  }, [query, onRunQuery]);
 
   const isMetricsMode = query.queryType === QueryType.Metrics
   const isRawMode = query.queryType === QueryType.Raw
@@ -32,8 +42,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   const [sensorId, setSensorId] = useState<string>(query.sensorId || '')
   const [manualMethod, setManualMethod] = useState<string>(query.manualMethod || '');
   const [manualObjectId, setManualObjectId] = useState<string>(query.manualObjectId || '');
-  const [isStreaming, setIsStreaming] = useState<boolean>(query.isStreaming || false);
-  const [streamInterval, setStreamInterval] = useState<number>(query.streamInterval || 1000);
+
 
   const [lists, setLists] = useState({
     groups: [] as Array<SelectableValue<string>>,
@@ -52,6 +61,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   lists.groups.sort((a, b) => (a.label ?? '').localeCompare(b.label ?? ''))
   lists.devices.sort((a, b) => (a.label ?? '').localeCompare(b.label ?? ''))
   lists.sensors.sort((a, b) => (a.label ?? '').localeCompare(b.label ?? ''))
+  lists.channels.sort((a, b) => (a.label ?? '').localeCompare(b.label ?? ''))
 
 
 
@@ -211,6 +221,8 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     setSensorId((prev) => query.sensorId ?? prev);
     setManualMethod((prev) => query.manualMethod ?? prev);
     setManualObjectId((prev) => query.manualObjectId ?? prev);
+    // Add this line to restore channel selections
+    setChannelQuery((prev) => query.channelArray || prev || []);
   }, [query]);
  
 
@@ -270,43 +282,62 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   const deviceOptions = useMemo(() => lists.devices, [lists.devices]);
   const sensorOptions = useMemo(() => lists.sensors, [lists.sensors]);
 
-  // Add new loadChannelOptions function
-  const loadChannelOptions = async () => {
+  // Add new memoized selected values
+  const selectedGroup = useMemo(() => {
+    return groupOptions.find(option => option.value === group) || (group ? {label: group, value: group} : null);
+  }, [groupOptions, group]);
+
+  const selectedDevice = useMemo(() => {
+    return deviceOptions.find(option => option.value === device) || (device ? {label: device, value: device} : null);
+  }, [deviceOptions, device]);
+
+  const selectedSensor = useMemo(() => {
+    return sensorOptions.find(option => option.value === sensor) || (sensor ? {label: sensor, value: sensor} : null);
+  }, [sensorOptions, sensor]);
+
+  // Add new loadChannelOptions function with useMemo
+  const loadChannelOptions = useMemo(() => async () => {
     if (!sensorId) {
       return [];
     }
 
     try {
-      // eslint-disable-next-line no-console
-      console.debug('Fetching channels for sensorId:', sensorId);
       const response = await datasource.getChannels(sensorId);
-      
-      // Debug logging
-      // eslint-disable-next-line no-console
-      console.debug('Channel response:', response);
 
-      if (!response || !response.values || !response.values.length) {
-        console.error('Invalid channel response:', response);
+      if (!response) {
+        console.warn('No response received from getChannels');
         return [];
       }
 
-      const channelData = response.values[0];
-      const options = Object.keys(channelData)
-        .filter(key => key !== 'datetime')
-        .map(key => ({
-          label: key,
-          value: key,
-        }));
+      // Check if response has the expected structure
+      if (typeof response === 'object' && 'values' in response) {
+        const values = response.values;
+        if (!Array.isArray(values) || values.length === 0) {
+          console.warn('No channel values found in response');
+          return [];
+        }
 
-      // eslint-disable-next-line no-console
-      console.debug('Processed channel options:', options);
-      return options;
+        const channelData = values[0];
+        if (typeof channelData !== 'object') {
+          console.warn('Invalid channel data format');
+          return [];
+        }
 
-    } catch (error) {
-      console.error('Error loading channels:', error);
+        return Object.keys(channelData)
+          .filter(key => key !== 'datetime')
+          .map(key => ({
+            label: key,
+            value: key,
+          }));
+      }
+
+      console.warn('Unexpected response format:', response);
+      return [];
+    } catch (error: any) {
+      console.error('Error loading channels:', error?.message || error);
       return [];
     }
-  };
+  }, [sensorId, datasource]);
   /* ==================================================  EVENT HANDLERS ==================================================  */
 
     /* ==================================================  QUERY  ==================================================  */
@@ -314,8 +345,8 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   /* ==================================================  ONQUERYTYPESCHANGE ==================================================  */
   const onQueryTypeChange = useCallback((value: SelectableValue<QueryType>) => {
     onChange({ ...query, queryType: value.value! });
-    onRunQuery();
-  }, [query, onChange, onRunQuery]);
+    runQueryIfChanged();
+  }, [query, onChange, runQueryIfChanged]);
 
   /* ==================================================  ONGROUPCHANGE ==================================================  */
   const onGroupChange = useCallback(async (value: SelectableValue<string>) => {
@@ -327,8 +358,8 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
       groupId: groupObjId,
     });
     setLists(prev => ({ ...prev, devices: [], sensors: [], channels: [] }));
-    //onRunQuery();
-  }, [query, onChange,/*  onRunQuery,  */findGroupId]);
+    runQueryIfChanged();
+  }, [query, onChange, runQueryIfChanged,  findGroupId]);
 
 
   /* ==================================================  ONDEVICECHANGE ================================================= */
@@ -342,8 +373,8 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
       deviceId: deviceObjId,
     });
     setLists(prev => ({ ...prev, sensors: [], channels: [] }));
-    //onRunQuery();
-  }, [query, onChange, /*  onRunQuery,  */findDeviceId]);
+    runQueryIfChanged();
+  }, [query, onChange, runQueryIfChanged,  findDeviceId]);
 
 
 /* ==================================================  ONSENSORCHANGE ==================================================  */
@@ -364,23 +395,25 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
       sensorId: sensorObjId,
     });
     
-    //onRunQuery();
-  }, [query, onChange, /*  onRunQuery,  */findSensorObjid]);
+    runQueryIfChanged();
+  }, [query, onChange,  runQueryIfChanged,  findSensorObjid]);
 
   /* ==================================================  ONCHANNELCHANGE ==================================================  */
-  const onChannelChange = (values: Array<SelectableValue<string>>) => {
-    const selectedChannels = values.map(v => v.value || '');
+  const onChannelChange = useCallback((values: Array<SelectableValue<string>>) => {
+    const selectedChannels = values.map(v => v.value!);
     
+    // Update both local state and query model
+    setChannelQuery(selectedChannels);
+    
+    // Ensure we store both value and label for each channel
     onChange({
       ...query,
       channel: selectedChannels[0] || '',
       channelArray: selectedChannels,
     });
     
-    setChannelQuery(selectedChannels);
-    setChannel(selectedChannels[0] || '');
-    onRunQuery();
-  };
+    runQueryIfChanged();
+  }, [query, onChange, runQueryIfChanged]);
 
 /* ==================================================  ONPROPERTYCHANGE ==================================================  */
 const onPropertyChange = (value: SelectableValue<string>) => {
@@ -390,7 +423,7 @@ const onPropertyChange = (value: SelectableValue<string>) => {
     ...query, 
     property: value.value,
   });
-  onRunQuery();
+  runQueryIfChanged();
 };
 
 /* ==================================================  ON FILTER PROPERTY CHANGE ==================================================  */
@@ -401,27 +434,27 @@ const onFilterPropertyChange = (value: SelectableValue<string>) => {
     ...query, 
     filterProperty: value.value 
   });
-  onRunQuery();
+  runQueryIfChanged();
 };
 
 /* ==================================================  ON INCLUDE GROUP NAME ==================================================  */
 const onIncludeGroupName = (event: ChangeEvent<HTMLInputElement>) => {
   onChange({ ...query, includeGroupName: event.currentTarget.checked })
-  onRunQuery()
+  runQueryIfChanged()
 }
 
 
 /* ==================================================  ON INCLUDE DEVICE NAME ==================================================  */
 const onIncludeDeviceName = (event: React.ChangeEvent<HTMLInputElement>) => {
   onChange({ ...query, includeDeviceName: event.currentTarget.checked })
-  onRunQuery()
+  runQueryIfChanged()
 }
 
 
 /* ==================================================  ON INCLUDE SENSOR NAME ==================================================  */
 const onIncludeSensorName = (event: ChangeEvent<HTMLInputElement>) => {
   onChange({ ...query, includeSensorName: event.currentTarget.checked })
-  onRunQuery()
+  runQueryIfChanged()
 }
 
 /* ==================================================  ON MANUAL METHOD CHANGE ==================================================  */
@@ -431,7 +464,7 @@ const onManualMethodChange = (value: SelectableValue<string>) => {
     ...query,
     manualMethod: value.value,
   });
-  onRunQuery();
+  runQueryIfChanged();
 };
 
 
@@ -443,27 +476,69 @@ const onManualObjectIdChange = (event: ChangeEvent<HTMLInputElement>) => {
     ...query,
     manualObjectId: value,
   });
-  onRunQuery();
+  runQueryIfChanged();
 };
 
-/* ==================================================  ON STREAMING CHANGE ==================================================  */
-const onStreamingChange = (event: ChangeEvent<HTMLInputElement>) => {
-  const value = event.currentTarget.checked;
-  setIsStreaming(value);
-  onChange({ ...query, isStreaming: value });
-  onRunQuery();
-};
 
-/* ==================================================  ON STREAM INTERVAL CHANGE ==================================================  */
-const onStreamIntervalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const value = parseInt(e.currentTarget.value, 10);
-  setStreamInterval(value);
-  onChange({ ...query, streamInterval: value });
-  onRunQuery();
-};
 
 /* ================================================== DESTRUCTURING ================================================== */
 
+// Set default streaming values
+useEffect(() => {
+  if (query.isStreaming === undefined) {
+    onChange({
+      ...query,
+      isStreaming: false,
+      streamInterval: 2500, // Default interval 5ms (2,5 seconds)
+    });
+  }
+}, [query, onChange]);
+
+// Streaming section with backend integration
+const renderStreamingOptions = () => (
+  <FieldSet label="Streaming Options">
+    <Stack direction="row" gap={1}>
+      <InlineField label="Enable Streaming" labelWidth={16}>
+        <InlineSwitch 
+          id='query-editor-is-stream'
+          value={query.isStreaming || false}
+          onChange={(e) => {
+            const isStreaming = e.currentTarget.checked;
+            const streamInterval = isStreaming ? (query.streamInterval || 2500) : undefined;
+            onChange({ 
+              ...query, 
+              isStreaming,
+              streamInterval,
+            });
+            // Run query to update backend state
+            runQueryIfChanged();
+          }} 
+        />
+      </InlineField>
+      {query.isStreaming && (
+        <InlineField label="Update Interval (ms)" labelWidth={20} tooltip="Refresh interval in milliseconds">
+          <Input
+            id='query-editor-stream-interval'
+            type="number"
+            value={query.streamInterval || 2500}
+            onChange={(e) => {
+              const interval = Math.max(0, Math.min(60000, parseInt(e.currentTarget.value, 10) || 2500));
+              onChange({
+                ...query,
+                streamInterval: interval,
+              });
+              // Run query to update backend state
+              runQueryIfChanged();
+            }}
+            placeholder="2500"
+            min={0}
+            max={60000}
+          />
+        </InlineField>
+      )}
+    </Stack>
+  </FieldSet>
+);
 
 /* ================================================== RENDER ================================================== */
 return (
@@ -472,6 +547,7 @@ return (
       <Stack direction="column" gap={1}>
         <InlineField label="Query Type" labelWidth={20} grow>
           <Select
+            id='query-editor-queryType'
             options={queryTypeOptions}
             value={query.queryType}
             onChange={onQueryTypeChange}
@@ -481,9 +557,10 @@ return (
 
         <InlineField label="Group" labelWidth={20} grow>
           <Select
+            id='query-editor-group'
             isLoading={isLoading}
             options={groupOptions}
-            value={group}
+            value={selectedGroup}
             onChange={onGroupChange}
             width={47}
             allowCustomValue
@@ -495,9 +572,10 @@ return (
 
         <InlineField label="Device" labelWidth={20} grow>
           <Select
+            id='query-editor-device'
             isLoading={!lists.devices.length}
             options={deviceOptions}
-            value={device}
+            value={selectedDevice}
             onChange={onDeviceChange}
             width={47}
             allowCustomValue
@@ -511,9 +589,10 @@ return (
       <Stack direction="column" gap={1}>
         <InlineField label="Sensor" labelWidth={20} grow>
           <Select
+            id='query-editor-sensor'
             isLoading={!lists.sensors.length}
             options={sensorOptions}
-            value={sensor}
+            value={selectedSensor}
             onChange={onSensorChange}
             
             width={47}
@@ -525,10 +604,14 @@ return (
         </InlineField>
         <InlineField label="Channel" labelWidth={20} grow>
           <AsyncMultiSelect
+            id='query-editor-channel'
             key={sensorId}
             loadOptions={loadChannelOptions}
             defaultOptions={true}
-            value={(channelQuery || []).map(c => ({ label: c, value: c }))}
+            value={channelQuery.map(c => ({ 
+              label: c, 
+              value: c,
+            }))}
             onChange={onChannelChange}
             width={47}
             placeholder={sensorId ? "Select Channel" : "First select a sensor"}
@@ -540,33 +623,19 @@ return (
     </Stack>
    
 
-    {/*options for Metrics    */}
-    {isMetricsMode && (
-      <FieldSet label="Options">
+    {/* Show display name options for both Metrics and Streaming */}
+    {(isMetricsMode || query.isStreaming) && (
+      <FieldSet label="Display Options">
         <Stack direction="row" gap={1}>
-          <InlineField label="Include Group" labelWidth={16}>
-            <InlineSwitch value={query.includeGroupName || false} onChange={onIncludeGroupName} />
+          <InlineField  label="Include Group" labelWidth={16}>
+            <InlineSwitch id='query-editor-include-group' value={query.includeGroupName || false} onChange={onIncludeGroupName} />
           </InlineField>
           <InlineField label="Include Device" labelWidth={15}>
-            <InlineSwitch value={query.includeDeviceName || false} onChange={onIncludeDeviceName} />
+            <InlineSwitch id='query-editor-include-device' value={query.includeDeviceName || false} onChange={onIncludeDeviceName} />
           </InlineField>
           <InlineField label="Include Sensor" labelWidth={15}>
-            <InlineSwitch value={query.includeSensorName || false} onChange={onIncludeSensorName} />
+            <InlineSwitch  id='query-editor-include-device' value={query.includeSensorName || false} onChange={onIncludeSensorName} />
           </InlineField>
-          <InlineField label="Enable Streaming" labelWidth={16}>
-            <InlineSwitch value={isStreaming} onChange={onStreamingChange} />
-          </InlineField>
-          {isStreaming && (
-            <InlineField label="Stream Interval (ms)" labelWidth={20}>
-              <Input
-                type="number"
-                value={streamInterval}
-                onChange={onStreamIntervalChange}
-                min={100}
-                max={60000}
-              />
-            </InlineField>
-          )}
         </Stack>
       </FieldSet>
     )}
@@ -577,6 +646,7 @@ return (
         <Stack direction="row" gap={2}>
           <InlineField label="Property" labelWidth={16} tooltip="Select property type">
             <Select
+              id='query-editor-property'
               options={lists.properties}
               value={query.property}
               onChange={onPropertyChange}
@@ -587,6 +657,7 @@ return (
           </InlineField>
           <InlineField label="Filter Property" labelWidth={16} tooltip="Select filter property">
             <Select
+              id='query-editor-filterProperty'
               options={lists.filterProperties}
               value={query.filterProperty}
               onChange={onFilterPropertyChange}
@@ -605,6 +676,7 @@ return (
         <Stack direction="row" gap={2}>
           <InlineField label="API Method" labelWidth={16} tooltip="Select or enter a custom PRTG API endpoint">
             <Select
+              id='query-editor-manualMethod'
               options={manualApiMethods}
               value={manualMethod}
               onChange={onManualMethodChange}
@@ -617,13 +689,14 @@ return (
                   ...query,
                   manualMethod: customValue,
                 });
-                onRunQuery();
+                runQueryIfChanged();
               }}
               isClearable
             />
           </InlineField>
           <InlineField label="Object ID" labelWidth={16} tooltip="Object ID from selected sensor">
             <Input
+              id='query-editor-manualObjectId'
               value={manualObjectId || sensorId}
               onChange={onManualObjectIdChange}
               placeholder="Automatically filled from sensor"
@@ -636,7 +709,9 @@ return (
       </FieldSet>
     )}
 
+    {/* Always show streaming options */}
+    {renderStreamingOptions()}
+
   </Stack>
 )
 }
-
