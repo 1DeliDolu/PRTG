@@ -483,18 +483,19 @@ const onManualObjectIdChange = (event: ChangeEvent<HTMLInputElement>) => {
 
 /* ================================================== DESTRUCTURING ================================================== */
 
-// Set default streaming values
+// Set default streaming values with background updates enabled
 useEffect(() => {
   if (query.isStreaming === undefined) {
     onChange({
       ...query,
       isStreaming: false,
       streamInterval: 2500, // Default interval 5ms (2,5 seconds)
+      keepGraphsVisible: true, // Add this new option to keep charts visible during updates
     });
   }
 }, [query, onChange]);
 
-// Streaming section with backend integration
+// Streaming section with backend integration and visibility options
 const renderStreamingOptions = () => (
   <FieldSet label="Streaming Options">
     <Stack direction="row" gap={1}>
@@ -509,6 +510,7 @@ const renderStreamingOptions = () => (
               ...query, 
               isStreaming,
               streamInterval,
+              keepGraphsVisible: true, // Always keep graphs visible
             });
             // Run query to update backend state
             runQueryIfChanged();
@@ -516,25 +518,27 @@ const renderStreamingOptions = () => (
         />
       </InlineField>
       {query.isStreaming && (
-        <InlineField label="Update Interval (ms)" labelWidth={20} tooltip="Refresh interval in milliseconds">
-          <Input
-            id='query-editor-stream-interval'
-            type="number"
-            value={query.streamInterval || 2500}
-            onChange={(e) => {
-              const interval = Math.max(0, Math.min(60000, parseInt(e.currentTarget.value, 10) || 2500));
-              onChange({
-                ...query,
-                streamInterval: interval,
-              });
-              // Run query to update backend state
-              runQueryIfChanged();
-            }}
-            placeholder="2500"
-            min={0}
-            max={60000}
-          />
-        </InlineField>
+        <>
+          <InlineField label="Update Interval (ms)" labelWidth={20} tooltip="Refresh interval in milliseconds">
+            <Input
+              id='query-editor-stream-interval'
+              type="number"
+              value={query.streamInterval || 2500}
+              onChange={(e) => {
+                const interval = Math.max(0, Math.min(60000, parseInt(e.currentTarget.value, 10) || 2500));
+                onChange({
+                  ...query,
+                  streamInterval: interval,
+                });
+                // Run query to update backend state
+                runQueryIfChanged();
+              }}
+              placeholder="2500"
+              min={0}
+              max={60000}
+            />
+          </InlineField>
+        </>
       )}
     </Stack>
   </FieldSet>

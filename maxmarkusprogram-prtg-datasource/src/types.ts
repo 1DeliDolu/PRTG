@@ -28,12 +28,12 @@ export interface MyQuery extends DataQuery {
   includeSensorName?: boolean;
   isStreaming?: boolean;
   streamInterval?: number;
+  keepGraphsVisible?: boolean; // Add this new property
   refId: string;
   // Add log specific fields
   logLevel?: string;
   logMessage?: string;
 }
-
 
 // Add new interface for manual API methods
 export interface ManualApiMethod {
@@ -72,7 +72,6 @@ export interface MyDataSourceOptions extends DataSourceJsonData {
 export interface MySecureJsonData {
   apiKey?: string;
 }
-
 
 /* ################################### QUERY TYPE OPTION ###################################### */
 export interface QueryTypeOptions {
@@ -114,7 +113,6 @@ export interface PRTGItem {
   status_raw: number;
   tags: string;
   tags_raw: string;
-  
 }
 
 export interface PRTGGroupListResponse {
@@ -158,7 +156,6 @@ export interface PRTGItemChannel {
   datetime: string;
 }
 
-
 /* ################################### Propert an filter prpoerty ################################################## */
 
 export const filterPropertyList = [
@@ -188,7 +185,6 @@ export interface PropertyOption {
   label: string;
   value: PropertyItem['name'];
 }
-
 
 /* ################################################## timezoneOptions ################################################### */
 
