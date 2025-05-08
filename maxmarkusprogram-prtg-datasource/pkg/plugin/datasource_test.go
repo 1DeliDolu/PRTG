@@ -337,7 +337,10 @@ type MockApi struct {
 	groups         *PrtgGroupListResponse
 	devices        *PrtgDevicesListResponse
 	sensors        *PrtgSensorsListResponse
+<<<<<<< HEAD
+=======
 	channels       *PrtgChannelValueStruct 
+>>>>>>> 9c117b6 (local timezone selection)
 	histData       *PrtgHistoricalDataResponse
 	err            error
 	timeout        time.Duration

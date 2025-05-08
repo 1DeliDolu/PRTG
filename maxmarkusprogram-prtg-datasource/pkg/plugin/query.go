@@ -309,6 +309,14 @@ func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, time
 			}),
 		)
 
+<<<<<<< HEAD
+		frame.Meta = &data.FrameMeta{
+			Type: data.FrameTypeTimeSeriesMulti,
+			Custom: map[string]interface{}{
+				"from":    timeRange.From.UnixMilli(),
+				"to":      timeRange.To.UnixMilli(),
+				"channel": channelName,
+=======
 		// Add stability metadata with explicit time information
 		frame.Meta = &data.FrameMeta{
 			Type: data.FrameTypeTimeSeriesMulti,
@@ -319,6 +327,7 @@ func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, time
 				"stable":   true,
 				"duration": timeRange.To.Sub(timeRange.From).String(),
 				"timezone": "UTC",
+>>>>>>> 9c117b6 (local timezone selection)
 			},
 		}
 

@@ -7,6 +7,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+<<<<<<< HEAD
+	"strconv"
+=======
+>>>>>>> 9c117b6 (local timezone selection)
 
 	"time"
 
@@ -425,6 +429,10 @@ func (a *Api) GetAnnotationData(query *AnnotationQuery) (*AnnotationResponse, er
 			Time:    t.UnixMilli(),
 			TimeEnd: t.UnixMilli(),
 			Title:   fmt.Sprintf("Sensor: %s", query.SensorID),
+<<<<<<< HEAD
+			Text:    formatAnnotationText("Value", fmt.Sprintf("%v", data.Value)),
+=======
+>>>>>>> 9c117b6 (local timezone selection)
 			Tags:    []string{"prtg", fmt.Sprintf("sensor:%s", query.SensorID)},
 			Type:    "annotation",
 			Data:    data.Value,
@@ -443,8 +451,11 @@ func (a *Api) GetAnnotationData(query *AnnotationQuery) (*AnnotationResponse, er
 		Total:       len(annotations),
 	}, nil
 }
+<<<<<<< HEAD
+=======
 
 // Add GetCacheTime method to implement PRTGAPI interface
 func (a *Api) GetCacheTime() time.Duration {
 	return a.cacheTime
 }
+>>>>>>> 9c117b6 (local timezone selection)
