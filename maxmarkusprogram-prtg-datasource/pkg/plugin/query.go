@@ -15,15 +15,50 @@ import (
 	"golang.org/x/text/language"
 )
 
-/* =================================== DATASOURCE INTERFACE ==================================== */
-type PRTGAPI interface {
-	GetGroups() (*PrtgGroupListResponse, error)
-	GetDevices() (*PrtgDevicesListResponse, error)
-	GetSensors() (*PrtgSensorsListResponse, error)
-}
-
 /* =================================== QUERY HANDLER ========================================== */
 func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
+	// Parse cache time from query JSON
+	var qm struct {
+		CacheTime int64 `json:"cacheTime"`
+	}
+	if err := json.Unmarshal(query.JSON, &qm); err != nil {
+		qm.CacheTime = 6000 // Default to 6 seconds if not specified
+	}
+
+	// Generate cache key including time range
+	cacheKey := QueryCacheKey{
+		RefID:     query.RefID,
+		QueryType: query.QueryType,
+		TimeRange: fmt.Sprintf("%v-%v", query.TimeRange.From.Unix(), query.TimeRange.To.Unix()),
+	}
+
+	// Check cache with proper expiration
+	d.cacheMutex.RLock()
+	if cached, exists := d.queryCache[cacheKey.String()]; exists &&
+		time.Now().Before(cached.ValidUntil) {
+		d.cacheMutex.RUnlock()
+		return cached.Response
+	}
+	d.cacheMutex.RUnlock()
+
+	// Execute query
+	response := d.executeQuery(ctx, pCtx, query)
+
+	// Cache successful responses
+	if response.Error == nil {
+		d.cacheMutex.Lock()
+		d.queryCache[cacheKey.String()] = &QueryCacheEntry{
+			Response:   response,
+			ValidUntil: time.Now().Add(time.Duration(qm.CacheTime) * time.Millisecond),
+		}
+		d.cacheMutex.Unlock()
+	}
+
+	return response
+}
+
+// Add this helper method
+func (d *Datasource) executeQuery(ctx context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
 	// Start tracing
 	ctx, span := d.tracer.StartSpan(ctx, "query")
 	defer span.End()
@@ -49,6 +84,44 @@ func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, quer
 		return backend.ErrDataResponse(backend.StatusBadRequest, "failed to parse query")
 	}
 
+	// Generate stable cache key that includes time range
+	cacheKey := QueryCacheKey{
+		RefID:      query.RefID,
+		QueryType:  query.QueryType,
+		SensorID:   qm.SensorId,
+		Channel:    strings.Join(qm.ChannelArray, ","),
+		TimeRange:  fmt.Sprintf("%v-%v", query.TimeRange.From.Unix(), query.TimeRange.To.Unix()),
+		Property:   qm.Property,
+		Parameters: string(query.JSON),
+	}
+
+	// Get cache duration from API
+	cacheTime := d.api.GetCacheTime()
+
+	// Calculate dynamic cache duration based on time range
+	timeRange := query.TimeRange.To.Sub(query.TimeRange.From)
+	var cacheDuration time.Duration
+
+	switch {
+	case timeRange <= time.Hour:
+		cacheDuration = 6 * time.Second
+	case timeRange <= 24*time.Hour:
+		cacheDuration = 30 * time.Second
+	default:
+		cacheDuration = cacheTime
+	}
+
+	// Use String() method to convert cacheKey to string
+	cacheKeyStr := cacheKey.String()
+
+	// Check cache with proper expiration
+	d.cacheMutex.RLock()
+	if entry, exists := d.queryCache[cacheKeyStr]; exists && time.Now().Before(entry.ValidUntil) {
+		d.cacheMutex.RUnlock()
+		return entry.Response
+	}
+	d.cacheMutex.RUnlock()
+
 	// Add query attributes to span
 	addQueryAttributes(span, qm)
 
@@ -67,12 +140,23 @@ func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, quer
 	var response backend.DataResponse
 	switch qm.QueryType {
 	case "metrics":
-		if qm.Channel == "" && len(qm.Channels) == 0 {
+		if qm.Channel == "" && len(qm.ChannelArray) == 0 {
 			d.logger.Error("Channel selection required for metrics query")
 			d.metrics.IncError("missing_channel")
 			return backend.ErrDataResponse(backend.StatusBadRequest, "channel selection required")
 		}
 		response = d.handleMetricsQuery(ctx, qm, query.TimeRange, fmt.Sprintf("metrics_%s", query.RefID))
+
+		// Cache metrics queries for shorter duration to maintain stability
+		if response.Error == nil {
+			d.cacheMutex.Lock()
+			d.queryCache[cacheKey.String()] = &QueryCacheEntry{
+				Response:   response,
+				ValidUntil: time.Now().Add(25 * time.Second), // Cache for 5 seconds
+				Updating:   false,
+			}
+			d.cacheMutex.Unlock()
+		}
 
 	case "manual":
 		d.logger.Debug("Executing manual query",
@@ -97,6 +181,22 @@ func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, quer
 		}
 	}
 
+	// Cache response with proper duration
+	if response.Error == nil {
+		d.cacheMutex.Lock()
+		d.queryCache[cacheKeyStr] = &QueryCacheEntry{
+			Response:   response,
+			ValidUntil: time.Now().Add(cacheDuration),
+			Updating:   false,
+		}
+		d.cacheMutex.Unlock()
+
+		d.logger.Debug("Cached response",
+			"key", cacheKeyStr,
+			"duration", cacheDuration,
+		)
+	}
+
 	// Record any errors in the response
 	if response.Error != nil {
 		d.logger.Error("Query execution failed",
@@ -113,14 +213,14 @@ func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, quer
 
 /* =================================== METRICS HANDLER ======================================== */
 func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, timeRange backend.TimeRange, baseFrameName string) backend.DataResponse {
-	ctx, span := d.tracer.StartSpan(ctx, "handleMetricsQuery")
-	backend.Logger.Info("Context", "ctx", ctx)	
+	_, span := d.tracer.StartSpan(ctx, "handleMetricsQuery")
 	defer span.End()
 
 	queryStart := time.Now()
 	d.logger.Debug("Fetching historical data",
 		"sensorId", qm.SensorId,
 		"timeRange", fmt.Sprintf("%v to %v", timeRange.From, timeRange.To),
+		"channels", qm.ChannelArray,
 	)
 
 	// Initialize response
@@ -128,6 +228,7 @@ func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, time
 		Frames: make([]*data.Frame, 0),
 	}
 
+	// Fetch historical data once for all channels
 	historicalData, err := d.api.GetHistoricalData(qm.SensorId, timeRange.From.UTC(), timeRange.To.UTC())
 	if err != nil {
 		d.logger.Error("Failed to fetch historical data",
@@ -139,18 +240,21 @@ func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, time
 		return backend.ErrDataResponse(backend.StatusInternal, "failed to fetch data")
 	}
 
-	var channels []string
-	if len(qm.Channels) > 0 {
-		channels = qm.Channels
-	} else if qm.Channel != "" {
+	// Check if we have channels to process
+	if len(qm.ChannelArray) == 0 && qm.Channel == "" {
+		d.logger.Error("No channels specified")
+		d.metrics.IncError("missing_channel")
+		return backend.ErrDataResponse(backend.StatusBadRequest, "channel selection required")
+	}
+
+	// Use ChannelArray if available, otherwise fall back to single channel
+	channels := qm.ChannelArray
+	if len(channels) == 0 && qm.Channel != "" {
 		channels = []string{qm.Channel}
 	}
 
+	// Process each channel
 	for _, channelName := range channels {
-		if channelName == "" {
-			continue
-		}
-
 		timesM := make([]time.Time, 0)
 		valuesM := make([]float64, 0)
 
@@ -182,8 +286,10 @@ func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, time
 			}
 		}
 
+		// Create frame name for this channel
 		frameName := fmt.Sprintf("%s_%s", baseFrameName, channelName)
 
+		// Build display name with optional prefixes
 		displayName := channelName
 		if qm.IncludeGroupName && qm.Group != "" {
 			displayName = fmt.Sprintf("%s - %s", qm.Group, displayName)
@@ -195,6 +301,7 @@ func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, time
 			displayName = fmt.Sprintf("%s - %s", qm.Sensor, displayName)
 		}
 
+		// Create frame for this channel
 		frame := data.NewFrame(frameName,
 			data.NewField("Time", nil, timesM),
 			data.NewField("Value", nil, valuesM).SetConfig(&data.FieldConfig{
@@ -202,9 +309,23 @@ func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, time
 			}),
 		)
 
+		// Add stability metadata with explicit time information
+		frame.Meta = &data.FrameMeta{
+			Type: data.FrameTypeTimeSeriesMulti,
+			Custom: map[string]interface{}{
+				"from":     timeRange.From.UnixMilli(),
+				"to":       timeRange.To.UnixMilli(),
+				"channel":  channelName,
+				"stable":   true,
+				"duration": timeRange.To.Sub(timeRange.From).String(),
+				"timezone": "UTC",
+			},
+		}
+
 		response.Frames = append(response.Frames, frame)
 	}
 
+	// If no frames were created, add an empty frame
 	if len(response.Frames) == 0 {
 		response.Frames = append(response.Frames, data.NewFrame(fmt.Sprintf("%s_empty", baseFrameName)))
 	}
@@ -557,8 +678,6 @@ func cleanMessageHTML(message string) string {
 	message = strings.ReplaceAll(message, "</div>", "")
 	return strings.TrimSpace(message)
 }
-
-
 
 // Helper function to select between raw and formatted values
 func selectRawOrFormatted(isRaw bool, rawValue, formattedValue interface{}) interface{} {

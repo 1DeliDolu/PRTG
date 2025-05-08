@@ -12,12 +12,12 @@ import (
 
 /* =================================== LOGGER INTERFACE ======================================== */
 type PrtgLogger interface {
-	Debug(msg string, args ...interface{})
-	Info(msg string, args ...interface{})
-	Warn(msg string, args ...interface{})
-	Error(msg string, args ...interface{})
+	Debug(msg string, args ...any)
+	Info(msg string, args ...any)
+	Warn(msg string, args ...any)
+	Error(msg string, args ...any)
 	WithContext(ctx context.Context) PrtgLogger
-	WithFields(fields map[string]interface{}) PrtgLogger
+	WithFields(fields map[string]any) PrtgLogger
 	SanitizeLogValue(value string, maxLength int) string
 }
 
@@ -35,7 +35,7 @@ func NewLogger() PrtgLogger {
 }
 
 /* =================================== LOGGER METHODS ======================================== */
-func (l *prtgLogger) formatLogMessage(level, msg string, args ...interface{}) string {
+func (l *prtgLogger) formatLogMessage(level, msg string, args ...any) string {
 	timestamp := time.Now().Format("01-02|15:04:05")
 	contextualArgs := log.ContextualAttributesFromContext(l.ctx)
 	allArgs := l.sanitizeArgs(append(contextualArgs, args...))
@@ -52,25 +52,25 @@ func (l *prtgLogger) formatLogMessage(level, msg string, args ...interface{}) st
 	return fmt.Sprintf("%s[%s] %s%s", level, timestamp, msg, kvPairs)
 }
 
-func (l *prtgLogger) Debug(msg string, args ...interface{}) {
+func (l *prtgLogger) Debug(msg string, args ...any) {
 	msg = l.capitalizeMessage(msg)
 	formattedMsg := l.formatLogMessage("DEBUG", msg, args...)
 	l.logger.Debug(formattedMsg)
 }
 
-func (l *prtgLogger) Info(msg string, args ...interface{}) {
+func (l *prtgLogger) Info(msg string, args ...any) {
 	msg = l.capitalizeMessage(msg)
 	formattedMsg := l.formatLogMessage("INFO ", msg, args...)
 	l.logger.Info(formattedMsg)
 }
 
-func (l *prtgLogger) Warn(msg string, args ...interface{}) {
+func (l *prtgLogger) Warn(msg string, args ...any) {
 	msg = l.capitalizeMessage(msg)
 	formattedMsg := l.formatLogMessage("WARN ", msg, args...)
 	l.logger.Warn(formattedMsg)
 }
 
-func (l *prtgLogger) Error(msg string, args ...interface{}) {
+func (l *prtgLogger) Error(msg string, args ...any) {
 	msg = l.capitalizeMessage(msg)
 	formattedMsg := l.formatLogMessage("ERROR", msg, args...)
 	l.logger.Error(formattedMsg)
@@ -86,8 +86,8 @@ func (l *prtgLogger) WithContext(ctx context.Context) PrtgLogger {
 	}
 }
 
-func (l *prtgLogger) WithFields(fields map[string]interface{}) PrtgLogger {
-	args := make([]interface{}, 0, len(fields)*2)
+func (l *prtgLogger) WithFields(fields map[string]any) PrtgLogger {
+	args := make([]any, 0, len(fields)*2)
 	for k, v := range fields {
 		// Sanitize key names to camelCase
 		k = l.toCamelCase(k)
@@ -109,7 +109,7 @@ func (l *prtgLogger) capitalizeMessage(msg string) string {
 	return strings.ToUpper(msg[:1]) + msg[1:]
 }
 
-func (l *prtgLogger) sanitizeArgs(args []interface{}) []interface{} {
+func (l *prtgLogger) sanitizeArgs(args []any) []any {
 	for i := 0; i < len(args)-1; i += 2 {
 		if key, ok := args[i].(string); ok {
 			// Convert keys to camelCase

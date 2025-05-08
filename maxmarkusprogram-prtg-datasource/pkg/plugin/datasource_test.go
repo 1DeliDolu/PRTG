@@ -337,11 +337,9 @@ type MockApi struct {
 	groups         *PrtgGroupListResponse
 	devices        *PrtgDevicesListResponse
 	sensors        *PrtgSensorsListResponse
-	channels       *PrtgChannelValueStruct // Changed to match the actual type
+	channels       *PrtgChannelValueStruct 
 	histData       *PrtgHistoricalDataResponse
 	err            error
-	baseURL        string
-	apiKey         string
 	timeout        time.Duration
 	cacheTime      time.Duration
 	manualResponse *PrtgManualMethodResponse
@@ -388,7 +386,7 @@ func (m *MockApi) GetChannels(objid string) (*PrtgChannelValueStruct, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
-	return &PrtgChannelValueStruct{}, nil
+	return m.channels, nil
 }
 
 func (m *MockApi) GetHistoricalData(sensorID string, startDate, endDate time.Time) (*PrtgHistoricalDataResponse, error) {
@@ -403,4 +401,11 @@ func (m *MockApi) ExecuteManualMethod(method string, objectId string) (*PrtgManu
 		return nil, m.err
 	}
 	return m.manualResponse, nil
+}
+
+func (m *MockApi) GetAnnotationData(query *AnnotationQuery) (*AnnotationResponse, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &AnnotationResponse{}, nil
 }
