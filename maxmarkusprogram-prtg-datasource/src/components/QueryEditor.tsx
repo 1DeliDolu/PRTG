@@ -445,7 +445,7 @@ const onIncludeGroupName = (event: ChangeEvent<HTMLInputElement>) => {
 
 
 /* ==================================================  ON INCLUDE DEVICE NAME ==================================================  */
-const onIncludeDeviceName = (event: React.ChangeEvent<HTMLInputElement>) => {
+const onIncludeDeviceName = (event: ChangeEvent<HTMLInputElement>) => {
   onChange({ ...query, includeDeviceName: event.currentTarget.checked })
   runQueryIfChanged()
 }
@@ -634,7 +634,7 @@ return (
             <InlineSwitch id='query-editor-include-device' value={query.includeDeviceName || false} onChange={onIncludeDeviceName} />
           </InlineField>
           <InlineField label="Include Sensor" labelWidth={15}>
-            <InlineSwitch  id='query-editor-include-device' value={query.includeSensorName || false} onChange={onIncludeSensorName} />
+            <InlineSwitch id='query-editor-include-sensor' value={query.includeSensorName || false} onChange={onIncludeSensorName} />
           </InlineField>
         </Stack>
       </FieldSet>
