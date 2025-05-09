@@ -11,5 +11,6 @@ datasources:
     jsonData:
       path: 'your-prtg-path'
       cacheTime: 6000
+      timezone: 'Europa/Berlin'
     secureJsonData:
       apiKey: 'api-key'
