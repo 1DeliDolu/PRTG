@@ -42,8 +42,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   const [sensorId, setSensorId] = useState<string>(query.sensorId || '')
   const [manualMethod, setManualMethod] = useState<string>(query.manualMethod || '');
   const [manualObjectId, setManualObjectId] = useState<string>(query.manualObjectId || '');
-  const [isStreaming, setIsStreaming] = useState<boolean>(query.isStreaming || false);
-  const [streamInterval, setStreamInterval] = useState<number>(query.streamInterval || 1000);
+
 
   const [lists, setLists] = useState({
     groups: [] as Array<SelectableValue<string>>,

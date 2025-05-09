@@ -156,7 +156,6 @@ export interface PRTGItemChannel {
   datetime: string;
 }
 
-
 /* ################################### Propert an filter prpoerty ################################################## */
 
 export const filterPropertyList = [
