@@ -1,41 +1,4 @@
 {
-  "__inputs": [
-    {
-      "name": "DS_PRTG",
-      "label": "PRTG",
-      "description": "",
-      "type": "datasource",
-      "pluginId": "maxmarkusprogram-prtg-datasource",
-      "pluginName": "PRTG"
-    }
-  ],
-  "__elements": {},
-  "__requires": [
-    {
-      "type": "grafana",
-      "id": "grafana",
-      "name": "Grafana",
-      "version": "11.3.2"
-    },
-    {
-      "type": "datasource",
-      "id": "maxmarkusprogram-prtg-datasource",
-      "name": "PRTG",
-      "version": "1.0.0"
-    },
-    {
-      "type": "panel",
-      "id": "stat",
-      "name": "Stat",
-      "version": ""
-    },
-    {
-      "type": "panel",
-      "id": "timeseries",
-      "name": "Time series",
-      "version": ""
-    }
-  ],
   "annotations": {
     "list": [
       {
@@ -49,19 +12,36 @@
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
         "type": "dashboard"
+      },
+      {
+        "datasource": {
+          "type": "maxmarkusprogram-prtg-datasource",
+          "uid": "bec28xnmivq4gf"
+        },
+        "enable": true,
+        "filter": {
+          "exclude": false,
+          "ids": [
+            4,
+            9
+          ]
+        },
+        "hide": false,
+        "iconColor": "red",
+        "name": "Annotion"
       }
     ]
   },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": null,
+  "id": 6,
   "links": [],
   "panels": [
     {
       "datasource": {
         "type": "maxmarkusprogram-prtg-datasource",
-        "uid": "${DS_PRTG}"
+        "uid": "bec28xnmivq4gf"
       },
       "fieldConfig": {
         "defaults": {
@@ -119,12 +99,12 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
+        "h": 10,
         "w": 12,
         "x": 0,
         "y": 0
       },
-      "id": 3,
+      "id": 10,
       "options": {
         "legend": {
           "calcs": [],
@@ -133,128 +113,25 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
-      "pluginVersion": "11.3.2",
+      "pluginVersion": "11.5.0",
       "targets": [
         {
-          "channel": "Maximum",
-          "device": "Clearpass-Manager-1",
-          "group": "Erwin-Piscator-Haus",
-          "includeDeviceName": true,
-          "includeGroupName": true,
-          "includeSensorName": true,
-          "objid": "25183",
-          "queryType": "metrics",
-          "refId": "A",
-          "sensor": "Ping 27",
-          "datasource": {
-            "type": "maxmarkusprogram-prtg-datasource",
-            "uid": "${DS_PRTG}"
-          }
-        }
-      ],
-      "title": "Panel Title",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "maxmarkusprogram-prtg-datasource",
-        "uid": "${DS_PRTG}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 0
-      },
-      "id": 4,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.3.2",
-      "targets": [
-        {
-          "channel": "Anzahl der Zustandsobjekte",
+          "channel": "API-Anforderungen (Geschwindigkeit)",
+          "channels": [
+            "API-Anforderungen (Geschwindigkeit)",
+            "Durchschnittliche CPU-Last (%)"
+          ],
           "device": "PRTG Core Server",
           "group": "Hauptgruppe",
-          "includeDeviceName": true,
-          "includeGroupName": true,
-          "includeSensorName": true,
-          "objid": "1006",
+          "objid": "31440",
           "queryType": "metrics",
           "refId": "A",
-          "sensor": "Serverzustand (Autonom)",
-          "datasource": {
-            "type": "maxmarkusprogram-prtg-datasource",
-            "uid": "${DS_PRTG}"
-          }
+          "sensor": "Zustand des PRTG Application Servers (Autonom)"
         }
       ],
       "title": "Panel Title",
@@ -263,123 +140,7 @@
     {
       "datasource": {
         "type": "maxmarkusprogram-prtg-datasource",
-        "uid": "${DS_PRTG}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 14,
-            "gradientMode": "opacity",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 3,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
-      },
-      "id": 1,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.3.2",
-      "targets": [
-        {
-          "channel": "Temperatur",
-          "datasource": {
-            "type": "maxmarkusprogram-prtg-datasource",
-            "uid": "${DS_PRTG}"
-          },
-          "device": "Analogüberwachung RZ1",
-          "filterProperty": "status",
-          "group": "Rechenzentrum RZ1",
-          "objid": "30869",
-          "property": "device",
-          "queryType": "metrics",
-          "refId": "A",
-          "sensor": "Temperatur USV 2"
-        },
-        {
-          "channel": "Temperatur",
-          "datasource": {
-            "type": "maxmarkusprogram-prtg-datasource",
-            "uid": "${DS_PRTG}"
-          },
-          "device": "Analogüberwachung RZ1",
-          "filterProperty": "status",
-          "group": "Rechenzentrum RZ1",
-          "hide": false,
-          "objid": "30870",
-          "property": "group",
-          "queryType": "metrics",
-          "refId": "B",
-          "sensor": "Temperatur USV 1"
-        }
-      ],
-      "title": "Panel Title",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "maxmarkusprogram-prtg-datasource",
-        "uid": "${DS_PRTG}"
+        "uid": "bec28xnmivq4gf"
       },
       "fieldConfig": {
         "defaults": {
@@ -404,12 +165,12 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 5,
+        "w": 6,
         "x": 12,
-        "y": 8
+        "y": 0
       },
-      "id": 2,
+      "id": 4,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -427,19 +188,16 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.3.2",
+      "pluginVersion": "11.5.0",
       "targets": [
         {
           "channel": "Temperatur",
-          "datasource": {
-            "type": "maxmarkusprogram-prtg-datasource",
-            "uid": "${DS_PRTG}"
-          },
           "device": "Analogüberwachung RZ1",
-          "filterProperty": "status",
           "group": "Rechenzentrum RZ1",
+          "includeDeviceName": true,
+          "includeGroupName": true,
+          "includeSensorName": true,
           "objid": "30869",
-          "property": "device",
           "queryType": "metrics",
           "refId": "A",
           "sensor": "Temperatur USV 2"
@@ -448,14 +206,14 @@
           "channel": "Temperatur",
           "datasource": {
             "type": "maxmarkusprogram-prtg-datasource",
-            "uid": "${DS_PRTG}"
+            "uid": "bec28xnmivq4gf"
           },
           "device": "Analogüberwachung RZ1",
-          "filterProperty": "status",
           "group": "Rechenzentrum RZ1",
           "hide": false,
+          "includeDeviceName": true,
+          "includeGroupName": true,
           "objid": "30870",
-          "property": "group",
           "queryType": "metrics",
           "refId": "B",
           "sensor": "Temperatur USV 1"
@@ -463,21 +221,868 @@
       ],
       "title": "Panel Title",
       "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "maxmarkusprogram-prtg-datasource",
+        "uid": "bec28xnmivq4gf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.0",
+      "targets": [
+        {
+          "channel": "Temperatur",
+          "device": "Analogüberwachung RZ1",
+          "group": "Rechenzentrum RZ1",
+          "includeDeviceName": true,
+          "includeGroupName": true,
+          "includeSensorName": true,
+          "objid": "30869",
+          "queryType": "metrics",
+          "refId": "A",
+          "sensor": "Temperatur USV 2"
+        },
+        {
+          "channel": "Temperatur",
+          "datasource": {
+            "type": "maxmarkusprogram-prtg-datasource",
+            "uid": "bec28xnmivq4gf"
+          },
+          "device": "Analogüberwachung RZ1",
+          "group": "Rechenzentrum RZ1",
+          "hide": false,
+          "includeDeviceName": true,
+          "includeGroupName": true,
+          "objid": "30870",
+          "queryType": "metrics",
+          "refId": "B",
+          "sensor": "Temperatur USV 1"
+        }
+      ],
+      "title": "Panel Title",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "maxmarkusprogram-prtg-datasource",
+        "uid": "bec28xnmivq4gf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 5
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.0",
+      "targets": [
+        {
+          "channel": "Freier physikalischer Speicher",
+          "datasource": {
+            "type": "maxmarkusprogram-prtg-datasource",
+            "uid": "bec28xnmivq4gf"
+          },
+          "device": "PRTG Core Server",
+          "group": "Hauptgruppe",
+          "objid": "1006",
+          "queryType": "metrics",
+          "refId": "A",
+          "sensor": "Serverzustand (Autonom)"
+        }
+      ],
+      "title": "Panel Title",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "maxmarkusprogram-prtg-datasource",
+        "uid": "bec28xnmivq4gf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 5
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.0",
+      "targets": [
+        {
+          "channel": "CPU 1",
+          "device": "SW-Teppich-1OG-3750X-125",
+          "group": "Barfüßer Tor",
+          "objid": "19283",
+          "queryType": "metrics",
+          "refId": "A",
+          "sensor": "System Health Prozessor"
+        }
+      ],
+      "title": "Panel Title",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "maxmarkusprogram-prtg-datasource",
+        "uid": "bec28xnmivq4gf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.0",
+      "targets": [
+        {
+          "channel": "Ping-Zeit",
+          "device": "SW-RZ1-Stack-242",
+          "group": "Netzwerk",
+          "objid": "30798",
+          "queryType": "metrics",
+          "refId": "A",
+          "sensor": "Ping 112"
+        }
+      ],
+      "title": "Panel Title",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "maxmarkusprogram-prtg-datasource",
+        "uid": "bec28xnmivq4gf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 16,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 10
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.0",
+      "targets": [
+        {
+          "channel": "Temperatur",
+          "channels": [
+            "Temperatur"
+          ],
+          "device": "Analogüberwachung RZ1",
+          "group": "Rechenzentrum RZ1",
+          "objid": "30870",
+          "queryType": "metrics",
+          "refId": "A",
+          "sensor": "Temperatur USV 1"
+        },
+        {
+          "channel": "Temperatur",
+          "datasource": {
+            "type": "maxmarkusprogram-prtg-datasource",
+            "uid": "bec28xnmivq4gf"
+          },
+          "device": "Analogüberwachung RZ1",
+          "group": "Rechenzentrum RZ1",
+          "hide": false,
+          "objid": "30869",
+          "queryType": "metrics",
+          "refId": "B",
+          "sensor": "Temperatur USV 2"
+        }
+      ],
+      "title": "Panel Title",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "maxmarkusprogram-prtg-datasource",
+        "uid": "bec28xnmivq4gf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 10
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.0",
+      "targets": [
+        {
+          "channel": "Temperatur",
+          "device": "Analogüberwachung RZ1",
+          "group": "Rechenzentrum RZ1",
+          "includeSensorName": true,
+          "objid": "30871",
+          "queryType": "metrics",
+          "refId": "A",
+          "sensor": "Temperatur RZ-Kaltgang 1"
+        },
+        {
+          "channel": "Temperatur",
+          "datasource": {
+            "type": "maxmarkusprogram-prtg-datasource",
+            "uid": "bec28xnmivq4gf"
+          },
+          "device": "Analogüberwachung RZ1",
+          "group": "Rechenzentrum RZ1",
+          "hide": false,
+          "includeSensorName": true,
+          "objid": "30868",
+          "queryType": "metrics",
+          "refId": "B",
+          "sensor": "Temperatur RZ-Kaltgang 2"
+        },
+        {
+          "channel": "Temperatur",
+          "datasource": {
+            "type": "maxmarkusprogram-prtg-datasource",
+            "uid": "bec28xnmivq4gf"
+          },
+          "device": "Analogüberwachung RZ1",
+          "group": "Rechenzentrum RZ1",
+          "hide": false,
+          "includeSensorName": true,
+          "objid": "30873",
+          "queryType": "metrics",
+          "refId": "C",
+          "sensor": "Temperatur RZ-Warmgang 2"
+        },
+        {
+          "channel": "Luftfeuchtigkeit",
+          "datasource": {
+            "type": "maxmarkusprogram-prtg-datasource",
+            "uid": "bec28xnmivq4gf"
+          },
+          "device": "Analogüberwachung RZ1",
+          "group": "Rechenzentrum RZ1",
+          "hide": false,
+          "objid": "30878",
+          "queryType": "metrics",
+          "refId": "D",
+          "sensor": "Luftfeuchtigkeit RZ-Warmgang 2"
+        }
+      ],
+      "title": "Panel Title",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "maxmarkusprogram-prtg-datasource",
+        "uid": "bec28xnmivq4gf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 15
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.0",
+      "targets": [
+        {
+          "channel": "Ping-Zeit",
+          "device": "SW-BARF11-EG-3750X-058",
+          "group": "Oberstadt",
+          "objid": "26151",
+          "queryType": "metrics",
+          "refId": "A",
+          "sensor": "Ping 1"
+        }
+      ],
+      "title": "Panel Title",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "maxmarkusprogram-prtg-datasource",
+        "uid": "bec28xnmivq4gf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 15
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.0",
+      "targets": [
+        {
+          "channel": "Datenverkehr eingehend (Geschwindigkeit)",
+          "device": "SW-RZ1-Stack-242",
+          "group": "Netzwerk",
+          "objid": "31062",
+          "queryType": "metrics",
+          "refId": "A",
+          "sensor": "(286) RZ1-RZ2 Traffic"
+        },
+        {
+          "channel": "Datenverkehr ausgehend (Geschwindigkeit)",
+          "datasource": {
+            "type": "maxmarkusprogram-prtg-datasource",
+            "uid": "bec28xnmivq4gf"
+          },
+          "device": "SW-RZ1-Stack-242",
+          "group": "Netzwerk",
+          "hide": false,
+          "objid": "31062",
+          "queryType": "metrics",
+          "refId": "B",
+          "sensor": "(286) RZ1-RZ2 Traffic"
+        }
+      ],
+      "title": "Panel Title",
+      "type": "timeseries"
     }
   ],
+  "preload": false,
+  "refresh": "5s",
   "schemaVersion": 40,
   "tags": [],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "text": [],
+          "value": []
+        },
+        "description": "alfa",
+        "includeAll": false,
+        "label": "Mustafa",
+        "multi": true,
+        "name": "query0",
+        "options": [],
+        "query": "",
+        "refresh": 2,
+        "regex": "",
+        "sort": 3,
+        "type": "query"
+      }
+    ]
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-12h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "Demo",
-  "uid": "cedc6kt7i74e8d",
-  "version": 6,
+  "uid": "aedftevavl4aoe",
+  "version": 22,
   "weekStart": ""
 }

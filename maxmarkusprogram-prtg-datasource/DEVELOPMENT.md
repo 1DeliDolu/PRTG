@@ -148,7 +148,7 @@ If you installed Grafana as a Windows service:
 
 `npm run build`
 
-optional
+#### Backend
 
 `mage`
 

@@ -6,7 +6,11 @@
     "metrics": true,
     "backend": true,
     "annotations": true,
+    "logs": true,
+    "tracing": true,
+    "streaming": true,
     "executable": "gpx_prtg",
+    "alerting": true,
     "info": {
         "description": "Grafana datasource plugin whit backend for PRTG",
         "author": {
@@ -34,11 +38,7 @@
             }
         ],
         "version": "1.0.0",
-<<<<<<< HEAD
-        "updated": "2025-02-21"
-=======
-        "updated": "2025-02-19"
->>>>>>> b7ec34b15515724822d7961b43e74d64b1be22b5
+        "updated": "2025-05-20"
     },
     "routes": [
         {
@@ -61,7 +61,14 @@
     ],
     "dependencies": {
         "grafanaDependency": ">=10.4.0",
-        "plugins": []
+        "plugins": [
+            {
+                "id": "grafana-prtg-datasource",
+                "name": "PRTG-GRAFANA",
+                "type": "datasource",
+                "version": "1.0.0"
+            }
+        ]
     },
-    "buildMode": "development"
+    "buildMode": "production"
 }
