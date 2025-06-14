@@ -1,4 +1,4 @@
-module github.com/1DeliDolu/grafana-plugins/grafana-prtg-datasource
+module github.com/1DeliDolu/PRTG/grafana-prtg-datasource
 
 go 1.24.1
 

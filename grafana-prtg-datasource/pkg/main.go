@@ -6,7 +6,7 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend/datasource"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/tracing"
-	"github.com/1DeliDolu/grafana-plugins/grafana-prtg-datasource/pkg/plugin"
+	"github.com/1DeliDolu/PRTG/grafana-prtg-datasource/pkg/plugin"
 	"go.opentelemetry.io/otel/attribute"
 )
 

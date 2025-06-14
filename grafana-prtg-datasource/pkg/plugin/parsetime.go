@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/1DeliDolu/grafana-plugins/grafana-prtg-datasource/pkg/models"
+	"github.com/1DeliDolu/PRTG/grafana-prtg-datasource/pkg/models"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 )
 
