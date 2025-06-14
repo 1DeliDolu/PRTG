@@ -1,8 +1,9 @@
 /** @jsx React.createElement */
 import React, { ChangeEvent } from 'react';
-import { InlineField, Input, SecretInput } from '@grafana/ui';
+import { Combobox, InlineField, Input, SecretInput } from '@grafana/ui';
 import { DataSourcePluginOptionsEditorProps } from '@grafana/data';
 import { MyDataSourceOptions, MySecureJsonData } from '../types';
+import { timezoneOptions } from '../timezone'
 
 interface Props extends DataSourcePluginOptionsEditorProps<MyDataSourceOptions, MySecureJsonData> { }
 
@@ -66,6 +67,17 @@ export function ConfigEditor(props: Props) {
       jsonData: updatedJsonData,
     });
   };
+  // Timezone selection handler
+  const onTimezoneChange = (selectedOption: any) => {
+    // Update the timezone directly when selection changes
+    onOptionsChange({
+      ...options,
+      jsonData: {
+        ...jsonData,
+        timezone: selectedOption.value,
+      },
+    });
+    };
 
   return (
     <div>
@@ -99,6 +111,14 @@ export function ConfigEditor(props: Props) {
           width={60}
           type="number"
           min={10}
+        />
+      </InlineField>
+      <InlineField label="Timezone" labelWidth={14} interactive tooltip={'Select the timezone'} required>
+        <Combobox
+          options={timezoneOptions}
+          value={jsonData.timezone}
+          onChange={onTimezoneChange}
+          width={60}
         />
       </InlineField>
     </div>
