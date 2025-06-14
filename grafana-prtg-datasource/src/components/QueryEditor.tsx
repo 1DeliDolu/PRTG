@@ -10,15 +10,16 @@ import {
 } from '@grafana/ui';
 import { QueryEditorProps, SelectableValue } from '@grafana/data'
 import { DataSource } from '../datasource'
-import { MyDataSourceOptions, MyQuery, queryTypeOptions, QueryType, propertyList, filterPropertyList, manualApiMethods } from '../types'
+import {
+  MyDataSourceOptions, MyQuery, queryTypeOptions, QueryType, propertyList, filterPropertyList, manualApiMethods
+} from '../types'
 
 type Props = QueryEditorProps<DataSource, MyQuery, MyDataSourceOptions>
 
 export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) {
   const prevQueryRef = useRef<MyQuery | null>(null);
-
   const runQueryIfChanged = useCallback(() => {
-    const currentQuery = JSON.stringify(query);
+    const currentQuery = JSON.stringify({ ...query, refId: query.refId }); // Include refId in comparison
     const prevQuery = JSON.stringify(prevQueryRef.current);
 
     if (currentQuery !== prevQuery) {
@@ -445,24 +446,34 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     onChange(updatedQuery);
 
     runQueryIfChanged();
-  }, [query, onChange, runQueryIfChanged, findSensorObjid]);
-  /* ==================================================  ONCHANNELCHANGE ==================================================  */
+  }, [query, onChange, runQueryIfChanged, findSensorObjid]);  /* ==================================================  ONCHANNELCHANGE ==================================================  */
   const onChannelChange = useCallback((values: Array<SelectableValue<string>>) => {
     const selectedChannels = values.map(v => v.value!);
 
-    // Update both local state and query model
+    // Update local state
     setChannelQuery(selectedChannels);
 
-    // Ensure we store both value and label for each channel
+    // CRITICAL: Update query to include ALL selected channels in a SINGLE query
+    // This prevents Grafana from creating multiple queries (refId A, B, C...)
     const updatedQuery = {
       ...query,
-      channel: selectedChannels[0] || '',
-      channelArray: selectedChannels,
+      channel: selectedChannels[0] || '', // First channel for backward compatibility
+      channelArray: selectedChannels, // ALL selected channels in one array
+      // Generate series names for each channel
+      seriesNames: selectedChannels.map(channel =>
+        `${query.sensor || 'Sensor'} - ${channel}`
+      ),
     };
-    onChange(updatedQuery);
 
-    runQueryIfChanged();
-  }, [query, onChange, runQueryIfChanged]);
+    onChange(updatedQuery);    // Only trigger query execution if we have channels selected
+    // Don't use runQueryIfChanged() as it might create duplicate queries
+    if (selectedChannels.length > 0) {
+      // Use timeout to ensure state is updated before running query
+      setTimeout(() => {
+        onRunQuery();
+      }, 0);
+    }
+  }, [query, onChange, onRunQuery]);
   /* ==================================================  ONPROPERTYCHANGE ==================================================  */
   const onPropertyChange = (value: SelectableValue<string>) => {
     if (!value?.value) { return };
@@ -474,6 +485,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     onChange(updatedQuery);
     runQueryIfChanged();
   };
+
   /* ==================================================  ON FILTER PROPERTY CHANGE ==================================================  */
   const onFilterPropertyChange = (value: SelectableValue<string>) => {
     if (!value?.value) { return };
@@ -505,6 +517,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     onChange(updatedQuery);
     runQueryIfChanged();
   }
+
   /* ==================================================  ON MANUAL METHOD CHANGE ==================================================  */
   const onManualMethodChange = (value: SelectableValue<string>) => {
     setManualMethod(value.value!);
@@ -650,8 +663,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
               isClearable
               isDisabled={!query.device}
             />
-          </InlineField>
-          <InlineField label="Channel" labelWidth={20} grow>
+          </InlineField>          <InlineField label="Channel" labelWidth={20} grow>
             <AsyncMultiSelect
               id='query-editor-channel'
               key={sensorId}
@@ -663,9 +675,10 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
               }))}
               onChange={onChannelChange}
               width={47}
-              placeholder={sensorId ? "Select Channel" : "First select a sensor"}
+              placeholder={sensorId ? "Select Channels (multiple allowed)" : "First select a sensor"}
               isClearable
               isDisabled={!sensorId}
+              noOptionsMessage="No channels available"
             />
           </InlineField>
         </Stack>
@@ -677,13 +690,25 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
         <FieldSet label="Display Options">
           <Stack direction="row" gap={1}>
             <InlineField label="Include Group" labelWidth={16}>
-              <InlineSwitch id='query-editor-include-group' value={query.includeGroupName || false} onChange={onIncludeGroupName} />
+              <InlineSwitch
+                id={`query-editor-include-group-${query.refId}`}
+                value={query.includeGroupName || false}
+                onChange={onIncludeGroupName}
+              />
             </InlineField>
-            <InlineField label="Include Device" labelWidth={15}>
-              <InlineSwitch id='query-editor-include-device' value={query.includeDeviceName || false} onChange={onIncludeDeviceName} />
+            <InlineField label="Include Device" labelWidth={16}>
+              <InlineSwitch
+                id={`query-editor-include-device-${query.refId}`}
+                value={query.includeDeviceName || false}
+                onChange={onIncludeDeviceName}
+              />
             </InlineField>
-            <InlineField label="Include Sensor" labelWidth={15}>
-              <InlineSwitch id='query-editor-include-sensor' value={query.includeSensorName || false} onChange={onIncludeSensorName} />
+            <InlineField label="Include Sensor" labelWidth={16}>
+              <InlineSwitch
+                id={`query-editor-include-sensor-${query.refId}`}
+                value={query.includeSensorName || false}
+                onChange={onIncludeSensorName}
+              />
             </InlineField>
           </Stack>
         </FieldSet>
@@ -764,3 +789,13 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     </Stack>
   )
 }
+
+/**
+ * PROBLEM: Şu anda her channel seçimi için ayrı query oluşuyor (refId A, B vs.)
+ * ÇÖZÜM: Tek query içinde birden fazla channel tutarak, backend'e channelArray gönderilmeli
+ * Backend bu array'i alıp her channel için ayrı series döndürmeli
+ */
+
+// Multi-channel selection: Users can select multiple channels from a single sensor
+// This will generate multiple series/graphs in the same panel
+// Each selected channel will appear as a separate line in the graph

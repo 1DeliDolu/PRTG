@@ -15,7 +15,6 @@ import (
 	"golang.org/x/text/language"
 )
 
-
 /* =================================== QUERY HANDLER ========================================== */
 // Modified to allow for mocking in tests
 func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
@@ -85,8 +84,7 @@ func (d *Datasource) executeQuery(ctx context.Context, pCtx backend.PluginContex
 		recordError(span, err, "Failed to parse query")
 		return backend.ErrDataResponse(backend.StatusBadRequest, "failed to parse query")
 	}
-
-	// Generate stable cache key that includes time range
+	// Generate stable cache key that includes time range and refId
 	cacheKey := QueryCacheKey{
 		RefID:      query.RefID,
 		QueryType:  query.QueryType,
@@ -94,7 +92,7 @@ func (d *Datasource) executeQuery(ctx context.Context, pCtx backend.PluginContex
 		Channel:    strings.Join(qm.ChannelArray, ","),
 		TimeRange:  fmt.Sprintf("%v-%v", query.TimeRange.From.Unix(), query.TimeRange.To.Unix()),
 		Property:   qm.Property,
-		Parameters: string(query.JSON),
+		Parameters: fmt.Sprintf("%s_%s_%s", qm.Group, qm.Device, qm.Sensor), // Add unique identifiers
 	}
 
 	// Get cache duration from API
@@ -248,15 +246,116 @@ func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, time
 		d.metrics.IncError("missing_channel")
 		return backend.ErrDataResponse(backend.StatusBadRequest, "channel selection required")
 	}
-
 	// Use ChannelArray if available, otherwise fall back to single channel
 	channels := qm.ChannelArray
 	if len(channels) == 0 && qm.Channel != "" {
 		channels = []string{qm.Channel}
 	}
 
-	// Process each channel
-	for _, channelName := range channels {
+	// If multiple channels are selected, create a single frame with multiple series
+	if len(channels) > 1 {
+		// Create a single frame with time field and multiple value fields
+		timesM := make([]time.Time, 0)
+		channelData := make(map[string][]float64)
+		
+		// Initialize channel data maps
+		for _, channelName := range channels {
+			channelData[channelName] = make([]float64, 0)
+		}
+
+		if historicalData != nil && len(historicalData.HistData) > 0 {
+			for _, item := range historicalData.HistData {
+				parsedTime, _, err := parsePRTGDateTime(item.Datetime)
+				if err != nil {
+					continue
+				}
+
+				// Check if we have data for any of the requested channels
+				hasData := false
+				tempValues := make(map[string]float64)
+				
+				for _, channelName := range channels {
+					if val, exists := item.Value[channelName]; exists {
+						var floatVal float64
+						switch v := val.(type) {
+						case float64:
+							floatVal = v
+						case string:
+							if parsed, err := strconv.ParseFloat(v, 64); err == nil {
+								floatVal = parsed
+							} else {
+								continue
+							}
+						default:
+							continue
+						}
+						tempValues[channelName] = floatVal
+						hasData = true
+					}
+				}
+
+				if hasData {
+					timesM = append(timesM, parsedTime)
+					// Add values for each channel (use 0 or NaN for missing values)
+					for _, channelName := range channels {
+						if val, exists := tempValues[channelName]; exists {
+							channelData[channelName] = append(channelData[channelName], val)
+						} else {
+							// Use NaN for missing values to maintain alignment
+							channelData[channelName] = append(channelData[channelName], 0)
+						}
+					}
+				}
+			}
+		}
+
+		// Create frame with time field
+		fields := []*data.Field{
+			data.NewField("Time", nil, timesM),
+		}
+		// Add a field for each channel
+		for _, channelName := range channels {
+			displayName := channelName
+			if qm.IncludeGroupName && qm.Group != "" {
+				displayName = fmt.Sprintf("%s - %s", qm.Group, displayName)
+			}
+			if qm.IncludeDeviceName && qm.Device != "" {
+				displayName = fmt.Sprintf("%s - %s", qm.Device, displayName)
+			}
+			if qm.IncludeSensorName && qm.Sensor != "" {
+				displayName = fmt.Sprintf("%s - %s", qm.Sensor, displayName)
+			}
+
+			field := data.NewField(channelName, nil, channelData[channelName]).SetConfig(&data.FieldConfig{
+				DisplayName: displayName,
+				Custom: map[string]interface{}{
+					"refId":     baseFrameName,
+					"channel":   channelName,
+					"queryType": "multi-channel",
+				},
+			})
+			fields = append(fields, field)
+		}
+		// Create single frame with all channels
+		frame := data.NewFrame(fmt.Sprintf("%s_multi", baseFrameName), fields...)
+		frame.Meta = &data.FrameMeta{
+			Type: data.FrameTypeTimeSeriesMulti,
+			Custom: map[string]interface{}{
+				"from":       timeRange.From.UnixMilli(),
+				"to":         timeRange.To.UnixMilli(),
+				"channels":   channels,
+				"stable":     true,
+				"duration":   timeRange.To.Sub(timeRange.From).String(),
+				"timezone":   "UTC",
+				"queryType":  "multi-channel",
+				"refId":      baseFrameName, // Keep refId stable
+			},
+		}
+
+		response.Frames = append(response.Frames, frame)
+	} else {
+		// Single channel - use existing logic
+		channelName := channels[0]
 		timesM := make([]time.Time, 0)
 		valuesM := make([]float64, 0)
 
@@ -288,9 +387,6 @@ func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, time
 			}
 		}
 
-		// Create frame name for this channel
-		frameName := fmt.Sprintf("%s_%s", baseFrameName, channelName)
-
 		// Build display name with optional prefixes
 		displayName := channelName
 		if qm.IncludeGroupName && qm.Group != "" {
@@ -301,26 +397,30 @@ func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, time
 		}
 		if qm.IncludeSensorName && qm.Sensor != "" {
 			displayName = fmt.Sprintf("%s - %s", qm.Sensor, displayName)
-		}
-
-		// Create frame for this channel
-		frame := data.NewFrame(frameName,
+		}		// Create frame for single channel
+		frame := data.NewFrame(fmt.Sprintf("%s_single", baseFrameName),
 			data.NewField("Time", nil, timesM),
 			data.NewField("Value", nil, valuesM).SetConfig(&data.FieldConfig{
 				DisplayName: displayName,
+				Custom: map[string]interface{}{
+					"refId":     baseFrameName,
+					"channel":   channelName,
+					"queryType": "single-channel",
+				},
 			}),
 		)
 
-		// Add stability metadata with explicit time information
 		frame.Meta = &data.FrameMeta{
 			Type: data.FrameTypeTimeSeriesMulti,
 			Custom: map[string]interface{}{
-				"from":     timeRange.From.UnixMilli(),
-				"to":       timeRange.To.UnixMilli(),
-				"channel":  channelName,
-				"stable":   true,
-				"duration": timeRange.To.Sub(timeRange.From).String(),
-				"timezone": "UTC",
+				"from":       timeRange.From.UnixMilli(),
+				"to":         timeRange.To.UnixMilli(),
+				"channel":    channelName,
+				"stable":     true,
+				"duration":   timeRange.To.Sub(timeRange.From).String(),
+				"timezone":   "UTC",
+				"queryType":  "single-channel",
+				"refId":      baseFrameName, // Keep refId stable
 			},
 		}
 

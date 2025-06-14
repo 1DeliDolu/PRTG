@@ -6,8 +6,26 @@ import (
 	"strings"
 	"time"
 
+	"github.com/1DeliDolu/grafana-plugins/grafana-prtg-datasource/pkg/models"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 )
+
+var defaultTimezone = "Europe/Berlin" // Default PRTG timezone
+
+// SetDefaultTimezone sets the default timezone for parsing dates
+// Call this during plugin initialization with the timezone from settings
+func SetDefaultTimezone(timezone string) {
+	if timezone != "" {
+		defaultTimezone = timezone
+		backend.Logger.Info("Setting default timezone for date parsing", "timezone", timezone)
+	}
+}
+
+// ParseTimeInit provides settings to the parse_time functions
+// Currently not used but kept for future functionality
+func ParseTimeInit(s *models.PluginSettings) {
+	// Implementation reserved for future use
+}
 
 func parsePRTGDateTime(datetime string) (time.Time, string, error) {
 	// Remove any whitespace
@@ -25,7 +43,14 @@ func parsePRTGDateTime(datetime string) (time.Time, string, error) {
 
 		// Parse start time to compare
 		startTimeStr := datePart + " " + startTime
-		loc, _ := time.LoadLocation("Europe/Berlin")
+		loc, err := time.LoadLocation(defaultTimezone)
+		if err != nil {
+			loc = time.UTC
+			backend.Logger.Warn("Failed to load default timezone, using UTC",
+				"timezone", defaultTimezone,
+				"error", err)
+		}
+
 		startDateTime, err := time.ParseInLocation("02.01.2006 15:04:05", startTimeStr, loc)
 		if err == nil {
 			endDateTime, err := time.ParseInLocation("02.01.2006 15:04:05", datetime, loc)
@@ -36,26 +61,48 @@ func parsePRTGDateTime(datetime string) (time.Time, string, error) {
 		}
 	}
 
-	// PRTG sends times in local timezone
-	loc, err := time.LoadLocation("Europe/Berlin")
+	// Use the configured timezone
+	sourceLoc, err := time.LoadLocation(defaultTimezone)
 	if err != nil {
-		loc = time.Local
+		sourceLoc = time.UTC
+		backend.Logger.Warn("Failed to load default timezone, using UTC",
+			"timezone", defaultTimezone,
+			"error", err)
 	}
 
-	// Try multiple formats
+	// User's local timezone for display
+	destLoc := time.Local
+
+	// Enhanced list of layouts to support more datetime formats globally
 	layouts := []string{
-		"02.01.2006 15:04:05",
-		"2006-01-02 15:04:05",
-		time.RFC3339,
+		"02.01.2006 15:04:05",     // European format (default PRTG)
+		time.RFC3339,              // 2006-01-02T15:04:05Z07:00
+		"2006-01-02T15:04:05",     // ISO 8601 without TZ
+		"2006-01-02 15:04:05",     // ISO with space
+		"2006/01/02 15:04:05",     // Slash-separated
+		"01/02/2006 03:04:05 PM",  // US 12-hour
+		"01/02/2006 15:04:05",     // US 24-hour
+		"02 Jan 2006 15:04:05",    // DMY with text month
+		"02 Jan 2006 03:04:05 PM", // DMY with text month, 12-hour
+		"Jan 2, 2006 15:04:05",    // US-style text month
+		"02-01-2006 15:04:05",     // DMY with dashes
+		"2006-01-02",              // Just date in ISO format
+		"02.01.2006",              // Just date in European format
+		"01/02/2006",              // Just date in US format
 	}
 
 	var lastErr error
 	for _, layout := range layouts {
-		parsedTime, err := time.ParseInLocation(layout, datetime, loc)
+		parsedTime, err := time.ParseInLocation(layout, datetime, sourceLoc)
 		if err == nil {
-			// Convert to UTC for consistency
+			// Convert this time to UTC
 			utcTime := parsedTime.UTC()
-			return utcTime, strconv.FormatInt(utcTime.Unix(), 10), nil
+
+			// Convert from UTC to user's local timezone
+			localTime := utcTime.In(destLoc)
+
+			unixTime := localTime.Unix()
+			return localTime, strconv.FormatInt(unixTime, 10), nil
 		}
 		lastErr = err
 	}

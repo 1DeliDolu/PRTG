@@ -1,0 +1,19 @@
+# Grafana Configuration
+GRAFANA_URL=http://localhost:3001
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=Docker
+
+# Plugin Configuration
+PLUGIN_ID=prtg-datasource
+PLUGIN_VERSION=1.0.0
+
+# Test Configuration
+NODE_ENV=test
+DEBUG=false
+
+# Authentication
+GF_SECURITY_ADMIN_USER=admin
+GF_SECURITY_ADMIN_PASSWORD=Docker
+GF_AUTH_ANONYMOUS_ENABLED=true
+
+GRAFANA_API_KEY=glc_eyJvIjoiMTI2NDcwMiIsIW4iOiJlMmUtYWRtaW4ta2V5LWUyZS1hZG1pbi1rZXkiLCJrIjoibjE0QXAwclhmejNTbzhocjR2NjUzOHdRIiwibSI6eyJyIjoidXMifX0=
