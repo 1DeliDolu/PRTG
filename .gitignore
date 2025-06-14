@@ -1,0 +1,23 @@
+# Large data files
+*.csv
+*.json
+*.txt
+*.log
+data/
+datasets/
+logs/
+temp/
+*.db
+*.sqlite
+*.sql
+
+# Node modules and dependencies
+node_modules/
+.env
+.env.local
+
+# Build outputs
+dist/
+build/
+*.min.js
+*.min.css
