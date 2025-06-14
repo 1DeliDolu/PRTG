@@ -1,0 +1,15 @@
+apiVersion: 1
+
+datasources:
+  - name: 'PRTG-GRAFANA'
+    type: 'grafana-prtg-datasource'
+    access: proxy
+    isDefault: false
+    orgId: 1
+    version: 1
+    editable: true
+    jsonData:
+      path: 'prtg.musta'
+      cacheTime: 6000
+    secureJsonData:
+      apiKey: 'BCQTDVLIIDBZCH64WAYXGOMUQUXENXEHI3IUGGUX3Y======'
