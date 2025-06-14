@@ -16,46 +16,46 @@ Install [Go](https://go.dev/dl/)
 
 1. Clone the repository:
 
-   ```sh
-   git clone https://github.com/1DeliDolu/PRTG.git
-   ```
+  ```sh
+  git clone https://github.com/1DeliDolu/PRTG.git
+  ```
 2. Navigate to the plugin directory:
 
-   ```sh
-   cd PRTG/maxmarkusprogram-prtg-datasource
-   ```
+  ```sh
+  cd PRTG/grafana-prtg-datasource
+  ```
 3. Install dependencies:
 
-   ```sh
-   npm install
-   ```
+  ```sh
+  npm install
+  ```
 4. Build the plugin:
 
-   ```sh
-   npm run build
-   ```
+  ```sh
+  npm run build
+  ```
 5. Build backend plugin
 
 ```text
-   mage
+  mage
 ```
 
 6. Rename the `dist` directory to
 
-   ```
-   cp -r dist /var/lib/grafana/plugins/PRTG
-   ```
+  ```
+  cp -r dist /var/lib/grafana/plugins/PRTG
+  ```
 7. Restart Grafana:
 
-   **with wsl**
+  **with wsl**
 
-   ```
-   sudo systemctl restart grafana-server
-   ```
+  ```
+  sudo systemctl restart grafana-server
+  ```
 
 
 **
-    or with Powershell**
+   or with Powershell**
 
 ```
 net stop grafana
@@ -224,7 +224,7 @@ Select Query Type
 </video>
 ``
 
-3. Open new terminal with  wsl (i use debian) and  land "maxmarkusprogram-prtg-datasource" cd maxmarkusprogram-prtg-datasource
+3. Open new terminal with  wsl (i use debian) and  land "grafana-prtg-datasource" cd grafana-prtg-datasource
 
 <video width="10000" height="500" controls>
   <source src="./video/cd.mp4" type="video/mp4">
@@ -289,8 +289,8 @@ Select Query Type
 
 12. Sign in
 
-    **at firts time
-    `user admin pasword admin`**
+   **at firts time
+   `user admin pasword admin`**
 
 <video width="1000" height="500" controls>
   <source src="./video/anmeldung.mp4" type="video/mp4">
@@ -317,3 +317,4 @@ Select Query Type
   <source src="./video/dashboard.mp4" type="video/mp4">
 </video>
 ``
+
