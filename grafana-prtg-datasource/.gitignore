@@ -48,3 +48,8 @@ ci/
 # .env
 # dotenv environment variables file
 .env
+
+
+#sign-plugin.sh
+
+sign-plugin.sh
