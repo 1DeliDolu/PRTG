@@ -1,5 +1,5 @@
 # Grafana Configuration
-GRAFANA_URL=http://localhost:3004
+GRAFANA_URL=http://localhost:3001
 GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=Docker
 

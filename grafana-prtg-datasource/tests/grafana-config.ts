@@ -1,6 +1,6 @@
 // Grafana e2e test environment setup
 export const GRAFANA_CONFIG = {
-    url: process.env.GRAFANA_URL || 'http://localhost:3004',
+    url: process.env.GRAFANA_URL || 'http://localhost:3001',
     version: '11.4',
     credentials: {
       username: process.env.GF_SECURITY_ADMIN_USER || 'admin',
