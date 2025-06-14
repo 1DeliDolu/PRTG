@@ -9,7 +9,7 @@ datasources:
     version: 1
     editable: true
     jsonData:
-      path: 'your.prtg.path'
+      path: 'prtg.musta'
       cacheTime: 6000
     secureJsonData:
-      apiKey: 'your-api-key'
+      apiKey: 'BCQTDVLIIDBZCH64WAYXGOMUQUXENXEHI3IUGGUX3Y======'

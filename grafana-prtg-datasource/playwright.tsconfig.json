@@ -1,0 +1,18 @@
+{
+    "extends": "./.config/tsconfig.json",
+    "compilerOptions": {
+        "types": [
+            "node",
+            "@playwright/test"
+        ],
+        "moduleResolution": "node",
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "skipLibCheck": true,
+        "noEmit": true,
+        "allowJs": true
+    },
+    "include": [
+        "playwright.config.ts"
+    ]
+}

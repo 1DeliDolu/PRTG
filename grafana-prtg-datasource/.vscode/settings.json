@@ -1,0 +1,28 @@
+{
+"yaml.schemas": {
+    "https://json.schemastore.org/github-workflow.json": "/.github/workflows/*.yml"
+},
+"yaml.format.enable": true,
+"yaml.format.singleQuote": false,
+"yaml.format.bracketSpacing": true,
+"yaml.format.proseWrap": "preserve",
+"yaml.format.printWidth": 80,
+"yaml.validate": true,
+"yaml.hover": true,
+"yaml.completion": true,
+"[yaml]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2,
+    "editor.autoIndent": "advanced",
+    "editor.formatOnSave": true
+},
+"[yml]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2,
+    "editor.autoIndent": "advanced",
+    "editor.formatOnSave": true
+},
+"typescript.preferences.includePackageJsonAutoImports": "auto",
+"typescript.suggest.autoImports": true,
+"typescript.preferences.useAliasesForRenames": false
+}
