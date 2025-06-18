@@ -7,10 +7,7 @@ on:
     tags:
       - 'v*' # Run workflow on version tags, e.g. v1.0.0.
 
-permissions:
-  id-token: write
-  contents: write
-  attestations: write
+permissions: read-all
 
 jobs:
   release:
@@ -19,10 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: grafana/plugin-actions/build-plugin@main
         with:
-          grafana_token: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
-          attestation:
+          persist-credentials: false
+
+      - uses: grafana/plugin-actions/build-plugin@main # zizmor: ignore[unpinned-uses] provided by grafana
         # Uncomment to enable plugin signing
         # (For more info on how to generate the access policy token see https://grafana.com/developers/plugin-tools/publish-a-plugin/sign-a-plugin#generate-an-access-policy-token)
         #with:

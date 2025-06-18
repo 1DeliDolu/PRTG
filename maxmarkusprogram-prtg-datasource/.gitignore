@@ -44,6 +44,3 @@ ci/
 .idea
 
 .eslintcache
-
-# Dependency directories
-.env

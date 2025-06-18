@@ -7,11 +7,11 @@ services:
       context: .
       args:
         grafana_image: ${GRAFANA_IMAGE:-grafana-enterprise}
-        grafana_version: ${GRAFANA_VERSION:-11.5.1}
+        grafana_version: ${GRAFANA_VERSION:-12.0.2}
         development: ${DEVELOPMENT:-false}
         anonymous_auth_enabled: ${ANONYMOUS_AUTH_ENABLED:-true}
     ports:
-      - 3002:3000/tcp
+      - 3000:3000/tcp
       - 2345:2345/tcp # delve
     security_opt:
       - 'apparmor:unconfined'
