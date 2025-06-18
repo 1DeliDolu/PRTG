@@ -51,8 +51,8 @@ func (a *Api) buildApiUrl(method string, params map[string]string) (string, erro
 // SetTimeout aktualisiert das Timeout für API-Anfragen.
 func (a *Api) SetTimeout(timeout time.Duration) {
 	if timeout > 0 {
-		if timeout < 10*time.Second {
-			timeout = 10 * time.Second // Minimum 10 seconds
+		if timeout < 20*time.Second {
+			timeout = 20 * time.Second // Minimum 20 seconds
 		}
 		a.timeout = timeout
 	}
