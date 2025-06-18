@@ -9,6 +9,8 @@ datasources:
     version: 1
     editable: true
     jsonData:
-      path: '/resources'
+      path: 'prtg.musta'
+      cacheTime: 60
+      timezone: 'localtime'
     secureJsonData:
-      apiKey: 'api-key'
+      apiKey: 'BCQTDVLIIDBZCH64WAYXGOMUQUXENXEHI3IUGGUX3Y======'

@@ -5,7 +5,7 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend/datasource"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
-	"github.com/maxmarkusprogram/prtg/pkg/plugin"
+	"github.com/1DeliDolu/PRTG/maxmarkusprogram-prtg-datasource/pkg/plugin"
 )
 
 func main() {
