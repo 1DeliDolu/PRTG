@@ -124,3 +124,4 @@ export function ConfigEditor(props: Props) {
     </div>
   );
 }
+// This component is a configuration editor for a Grafana data source plugin.

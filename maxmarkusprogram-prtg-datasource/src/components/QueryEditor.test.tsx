@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryEditor } from './QueryEditor';
 import { QueryType } from '../types';
@@ -296,17 +296,13 @@ describe('QueryEditor', () => {
         mockDatasource.getSensors.mockResolvedValue(mockSensorsResponse);
         mockDatasource.getChannels.mockResolvedValue(mockChannelsResponse);
     }); describe('Component Rendering', () => {
-        it('should render without crashing', async () => {
-            await act(async () => {
-                render(<QueryEditor {...defaultProps} />);
-            });
+        it('should render without crashing', () => {
+            render(<QueryEditor {...defaultProps} />);
             expect(screen.getByTestId('query-editor-queryType')).toBeInTheDocument();
         });
 
-        it('should render all basic fields', async () => {
-            await act(async () => {
-                render(<QueryEditor {...defaultProps} />);
-            });
+        it('should render all basic fields', () => {
+            render(<QueryEditor {...defaultProps} />);
 
             expect(screen.getByTestId('query-editor-queryType')).toBeInTheDocument();
             expect(screen.getByTestId('query-editor-group')).toBeInTheDocument();
@@ -315,19 +311,15 @@ describe('QueryEditor', () => {
             expect(screen.getByTestId('query-editor-channel')).toBeInTheDocument();
         });
 
-        it('should render streaming options', async () => {
-            await act(async () => {
-                render(<QueryEditor {...defaultProps} />);
-            });
+        it('should render streaming options', () => {
+            render(<QueryEditor {...defaultProps} />);
 
             expect(screen.getByTestId('fieldset-streaming-options')).toBeInTheDocument();
             expect(screen.getByTestId('query-editor-is-stream')).toBeInTheDocument();
         });
 
-        it('should render display options for metrics mode', async () => {
-            await act(async () => {
-                render(<QueryEditor {...defaultProps} />);
-            });
+        it('should render display options for metrics mode', () => {
+            render(<QueryEditor {...defaultProps} />);
 
             expect(screen.getByTestId('fieldset-display-options')).toBeInTheDocument();
             expect(screen.getByTestId('query-editor-include-group-A')).toBeInTheDocument();
@@ -336,9 +328,7 @@ describe('QueryEditor', () => {
         });
     }); describe('Data Fetching', () => {
         it('should fetch groups on component mount', async () => {
-            await act(async () => {
-                render(<QueryEditor {...defaultProps} />);
-            });
+            render(<QueryEditor {...defaultProps} />);
 
             await waitFor(() => {
                 expect(mockDatasource.getGroups).toHaveBeenCalledTimes(1);
@@ -361,17 +351,13 @@ describe('QueryEditor', () => {
                 query: queryWithGroup
             };
 
-            await act(async () => {
-                render(<QueryEditor {...props} />);
-            });
+            render(<QueryEditor {...props} />);
 
             await waitFor(() => {
                 expect(mockDatasource.getGroups).toHaveBeenCalled();
                 expect(mockDatasource.getDevices).toHaveBeenCalledWith('Group 1');
             });
-        });
-
-        it('should fetch sensors when device is selected', async () => {
+        }); it('should fetch sensors when device is selected', async () => {
             const onChange = jest.fn();
             const onRunQuery = jest.fn();
 
@@ -391,9 +377,7 @@ describe('QueryEditor', () => {
                 query: queryWithDevice
             };
 
-            await act(async () => {
-                render(<QueryEditor {...props} />);
-            });
+            render(<QueryEditor {...props} />);
 
             await waitFor(() => {
                 expect(mockDatasource.getSensors).toHaveBeenCalledWith('Device 1');
@@ -409,9 +393,7 @@ describe('QueryEditor', () => {
                 },
             };
 
-            await act(async () => {
-                render(<QueryEditor {...propsWithData} />);
-            });
+            render(<QueryEditor {...propsWithData} />);
 
             await waitFor(() => {
                 expect(mockDatasource.getChannels).toHaveBeenCalledWith('111');
@@ -423,9 +405,7 @@ describe('QueryEditor', () => {
             const onChange = jest.fn();
             const props = { ...defaultProps, onChange };
 
-            await act(async () => {
-                render(<QueryEditor {...props} />);
-            });
+            render(<QueryEditor {...props} />);
 
             const queryTypeSelect = screen.getByTestId('query-editor-queryType');
             await user.selectOptions(queryTypeSelect, QueryType.Raw);
@@ -439,9 +419,7 @@ describe('QueryEditor', () => {
             const onChange = jest.fn();
             const props = { ...defaultProps, onChange };
 
-            await act(async () => {
-                render(<QueryEditor {...props} />);
-            });
+            render(<QueryEditor {...props} />);
 
             // Simulate the component behavior by calling onChange directly
             const updatedQuery = {
@@ -458,9 +436,7 @@ describe('QueryEditor', () => {
                     groupId: '1',
                 })
             );
-        });
-
-        it('should handle device selection through onChange', async () => {
+        }); it('should handle device selection through onChange', async () => {
             const onChange = jest.fn();
             const propsWithGroup = {
                 ...defaultProps,
@@ -468,9 +444,7 @@ describe('QueryEditor', () => {
                 query: { ...defaultProps.query, group: 'Group 1' },
             };
 
-            await act(async () => {
-                render(<QueryEditor {...propsWithGroup} />);
-            });
+            render(<QueryEditor {...propsWithGroup} />);
 
             // Simulate the component behavior by calling onChange directly
             const updatedQuery = {
@@ -499,9 +473,7 @@ describe('QueryEditor', () => {
                 },
             };
 
-            await act(async () => {
-                render(<QueryEditor {...propsWithData} />);
-            });
+            render(<QueryEditor {...propsWithData} />);
 
             // Simulate the component behavior by calling onChange directly
             const updatedQuery = {
@@ -518,9 +490,7 @@ describe('QueryEditor', () => {
                     sensorId: '111',
                 })
             );
-        });
-
-        it('should handle channel selection', async () => {
+        }); it('should handle channel selection', async () => {
             const user = userEvent.setup();
             const onChange = jest.fn();
             const propsWithData = {
@@ -530,9 +500,9 @@ describe('QueryEditor', () => {
                     ...defaultProps.query,
                     sensorId: '111',
                 },
-            }; await act(async () => {
-                render(<QueryEditor {...propsWithData} />);
-            });
+            };
+
+            render(<QueryEditor {...propsWithData} />);
 
             const channelSelect = screen.getByTestId('query-editor-channel');
             await user.selectOptions(channelSelect, ['channel1', 'channel2']);
@@ -548,15 +518,13 @@ describe('QueryEditor', () => {
                 })
             );
         });
-    });
-
-    describe('Streaming Functionality', () => {
+    }); describe('Streaming Functionality', () => {
         it('should handle streaming toggle', async () => {
             const user = userEvent.setup();
             const onChange = jest.fn();
-            const props = { ...defaultProps, onChange }; await act(async () => {
-                render(<QueryEditor {...props} />);
-            });
+            const props = { ...defaultProps, onChange };
+
+            render(<QueryEditor {...props} />);
 
             const streamingToggle = screen.getByTestId('query-editor-is-stream');
             await user.click(streamingToggle);
@@ -573,9 +541,9 @@ describe('QueryEditor', () => {
             const propsWithStreaming = {
                 ...defaultProps,
                 query: { ...defaultProps.query, isStreaming: true },
-            }; await act(async () => {
-                render(<QueryEditor {...propsWithStreaming} />);
-            });
+            };
+
+            render(<QueryEditor {...propsWithStreaming} />);
 
             expect(screen.getByTestId('query-editor-stream-interval')).toBeInTheDocument();
         });
@@ -691,9 +659,7 @@ describe('QueryEditor', () => {
                 query: queryWithGroup
             };
 
-            await act(async () => {
-                render(<QueryEditor {...props} />);
-            });
+            render(<QueryEditor {...props} />);
 
             await waitFor(() => {
                 expect(consoleSpy).toHaveBeenCalledWith('Error fetching devices:', expect.any(Error));
@@ -705,9 +671,7 @@ describe('QueryEditor', () => {
 
             const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
 
-            await act(async () => {
-                render(<QueryEditor {...defaultProps} />);
-            });
+            render(<QueryEditor {...defaultProps} />);
 
             await waitFor(() => {
                 expect(consoleSpy).toHaveBeenCalledWith('Invalid response format:', expect.any(Object));
@@ -807,9 +771,7 @@ describe('QueryEditor', () => {
             const onRunQuery = jest.fn();
             const props = { ...defaultProps, onChange, onRunQuery, query: mockRealWorldQuery1 };
 
-            await act(async () => {
-                render(<QueryEditor {...props} />);
-            });
+        render(<QueryEditor {...props} />);
 
             // Verify the component renders with real-world data
             expect(screen.getByTestId('query-editor-group')).toBeInTheDocument();
@@ -838,19 +800,15 @@ describe('QueryEditor', () => {
                     onRunQuery={onRunQuery}
                     query={mockRealWorldQuery1}
                 />
+            );            // Update to second query with different time range
+            rerender(
+                <QueryEditor
+                    {...defaultProps}
+                    onChange={onChange}
+                    onRunQuery={onRunQuery}
+                    query={mockRealWorldQuery2}
+                />
             );
-
-            // Update to second query with different time range
-            await act(async () => {
-                rerender(
-                    <QueryEditor
-                        {...defaultProps}
-                        onChange={onChange}
-                        onRunQuery={onRunQuery}
-                        query={mockRealWorldQuery2}
-                    />
-                );
-            });
 
             // Verify the component handles the time range change
             expect(screen.getByTestId('query-editor-queryType')).toBeInTheDocument();
@@ -858,24 +816,18 @@ describe('QueryEditor', () => {
             const onChange = jest.fn();
             const props = { ...defaultProps, onChange, query: mockRealWorldQuery1 };
 
-            await act(async () => {
-                render(<QueryEditor {...props} />);
-            });
+            render(<QueryEditor {...props} />);
 
             // Test that the channel with German name is handled correctly
             const channelSelect = screen.getByTestId('query-editor-channel');
 
             // Verify the component can handle special characters in channel names
             expect(channelSelect).toBeInTheDocument();
-        });
-
-        it('should handle PRTG Core Server device specifically', async () => {
+        }); it('should handle PRTG Core Server device specifically', async () => {
             const onChange = jest.fn();
             const props = { ...defaultProps, onChange };
 
-            await act(async () => {
-                render(<QueryEditor {...props} />);
-            });
+            render(<QueryEditor {...props} />);
 
             // Simulate selecting the real-world data
             const updatedQuery = {
@@ -899,30 +851,26 @@ describe('QueryEditor', () => {
     });
 
     describe('Text and Raw Modes', () => {
-        it('should show property options for text mode', async () => {
+        it('should show property options for text mode', () => {
             const propsWithText = {
                 ...defaultProps,
                 query: { ...defaultProps.query, queryType: QueryType.Text },
             };
 
-            await act(async () => {
-                render(<QueryEditor {...propsWithText} />);
-            });
+        render(<QueryEditor {...propsWithText} />);
 
             expect(screen.getByTestId('fieldset-options')).toBeInTheDocument();
             expect(screen.getByTestId('query-editor-property')).toBeInTheDocument();
             expect(screen.getByTestId('query-editor-filterProperty')).toBeInTheDocument();
         });
 
-        it('should show property options for raw mode', async () => {
+        it('should show property options for raw mode', () => {
             const propsWithRaw = {
                 ...defaultProps,
                 query: { ...defaultProps.query, queryType: QueryType.Raw },
             };
 
-            await act(async () => {
-                render(<QueryEditor {...propsWithRaw} />);
-            });
+            render(<QueryEditor {...propsWithRaw} />);
 
             expect(screen.getByTestId('fieldset-options')).toBeInTheDocument();
             expect(screen.getByTestId('query-editor-property')).toBeInTheDocument();
