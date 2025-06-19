@@ -3,13 +3,17 @@
   "type": "datasource",
   "name": "Prtg",
   "id": "maxmarkusprogram-prtg-datasource",
+  "autoEnabled": true,
+  "alerting": true,
+  "annotations": true,
+  "logs": true,
   "metrics": true,
   "backend": true,
   "executable": "gpx_prtg",
   "info": {
-    "description": "",
+    "description": "Grafana datasource plugin for PRTG Network Monitor",
     "author": {
-      "name": "Maxmarkusprogram"
+      "name": "Mustafa Özdemir"
     },
     "keywords": ["datasource"],
     "logos": {

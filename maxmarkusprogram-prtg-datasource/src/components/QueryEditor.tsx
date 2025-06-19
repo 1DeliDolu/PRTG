@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback, ChangeEvent, useRef } from 'react';
 import {
   InlineField,
-  Select,
+  Combobox,
   Stack,
   FieldSet,
   InlineSwitch,
@@ -9,6 +9,7 @@ import {
   AsyncMultiSelect,
 } from '@grafana/ui';
 import { QueryEditorProps, SelectableValue } from '@grafana/data'
+import type { ComboboxOption } from '@grafana/ui';
 import { DataSource } from '../datasource'
 import {
   MyDataSourceOptions, MyQuery, queryTypeOptions, QueryType, propertyList, filterPropertyList, manualApiMethods
@@ -43,12 +44,12 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   const [sensorId, setSensorId] = useState<string>(query.sensorId || '')
   const [manualMethod, setManualMethod] = useState<string>(query.manualMethod || '');
   const [manualObjectId, setManualObjectId] = useState<string>(query.manualObjectId || '');
-
+  const [streamIntervalValue, setStreamIntervalValue] = useState<string>(String(query.streamInterval || 2500));
 
   const [lists, setLists] = useState({
-    groups: [] as Array<SelectableValue<string>>,
-    devices: [] as Array<SelectableValue<string>>,
-    sensors: [] as Array<SelectableValue<string>>,
+    groups: [] as Array<ComboboxOption<string>>,
+    devices: [] as Array<ComboboxOption<string>>,
+    sensors: [] as Array<ComboboxOption<string>>,
     channels: [] as Array<SelectableValue<string>>,
     values: [] as Array<SelectableValue<string>>,
     properties: [] as Array<SelectableValue<string>>,
@@ -65,7 +66,6 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   lists.channels.sort((a, b) => (a.label ?? '').localeCompare(b.label ?? ''))
 
 
-
   /* ================================================== FETCH GROUPS ================================================== */
   useEffect(() => {
     async function fetchGroups() {
@@ -77,25 +77,34 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
             label: group.group,
             value: group.group.toString(),
           }))
-          setLists((prev) => ({
-            ...prev,
-            groups: groupOptions,
-          }))
+
+          // Batch state updates to avoid ACT warnings in tests
+          setTimeout(() => {
+            setLists((prev) => ({
+              ...prev,
+              groups: groupOptions,
+            }))
+            setIsLoading(false)
+          }, 0)
         } else {
           console.error('Invalid response format:', response)
+          setTimeout(() => {
+            setLists((prev) => ({
+              ...prev,
+              groups: [],
+            }))
+            setIsLoading(false)
+          }, 0)
+        }
+      } catch (error) {
+        console.error('Error fetching groups:', error)
+        setTimeout(() => {
           setLists((prev) => ({
             ...prev,
             groups: [],
           }))
-        }
-      } catch (error) {
-        console.error('Error fetching groups:', error)
-        setLists((prev) => ({
-          ...prev,
-          groups: [],
-        }))
-      } finally {
-        setIsLoading(false)
+          setIsLoading(false)
+        }, 0)
       }
     }
     fetchGroups()
@@ -260,7 +269,6 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
       }));
     }
   }, [isTextMode, isRawMode]);
-
   /* ==================================================  INITIAL VALUES  ================================================== */
   useEffect(() => {
     setGroup((prev) => query.group ?? prev);
@@ -270,6 +278,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     setSensorId((prev) => query.sensorId ?? prev);
     setManualMethod((prev) => query.manualMethod ?? prev);
     setManualObjectId((prev) => query.manualObjectId ?? prev);
+    setStreamIntervalValue(String(query.streamInterval || 2500));
     // Add this line to restore channel selections
     setChannelQuery((prev) => query.channelArray || prev || []);
   }, [query]);
@@ -390,20 +399,24 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   /* ==================================================  EVENT HANDLERS ==================================================  */
 
   /* ==================================================  QUERY  ==================================================  */
-
   /* ==================================================  ONQUERYTYPESCHANGE ==================================================  */
-  const onQueryTypeChange = useCallback((value: SelectableValue<QueryType>) => {
-    onChange({ ...query, queryType: value.value! });
-    runQueryIfChanged();
+  const onQueryTypeChange = useCallback((option: ComboboxOption<string> | null) => {
+    if (option?.value) {
+      onChange({ ...query, queryType: option.value as QueryType });
+      runQueryIfChanged();
+    }
   }, [query, onChange, runQueryIfChanged]);
+
   /* ==================================================  ONGROUPCHANGE ==================================================  */
-  const onGroupChange = useCallback(async (value: SelectableValue<string>) => {
-    const groupObjId = await findGroupId(value.value!)
-    setGroup(value.value!);
+  const onGroupChange = useCallback(async (option: ComboboxOption<string> | null) => {
+    if (!option?.value) return;
+
+    const groupObjId = await findGroupId(option.value);
+    setGroup(option.value);
 
     const updatedQuery = {
       ...query,
-      group: value.value!,
+      group: option.value,
       groupId: groupObjId,
     };
     onChange(updatedQuery);
@@ -412,35 +425,36 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   }, [query, onChange, runQueryIfChanged, findGroupId]);
 
   /* ==================================================  ONDEVICECHANGE ================================================= */
-  const onDeviceChange = useCallback(async (value: SelectableValue<string>) => {
-    const deviceObjId = await findDeviceId(value.value!)
+  const onDeviceChange = useCallback(async (option: ComboboxOption<string> | null) => {
+    if (!option?.value) return;
 
-    setDevice(value.value!);
+    const deviceObjId = await findDeviceId(option.value);
+
+    setDevice(option.value);
     const updatedQuery = {
       ...query,
-      device: value.value!,
+      device: option.value,
       deviceId: deviceObjId,
     };
     onChange(updatedQuery);
     setLists(prev => ({ ...prev, sensors: [], channels: [] }));
     runQueryIfChanged();
   }, [query, onChange, runQueryIfChanged, findDeviceId]);
-
   /* ==================================================  ONSENSORCHANGE ==================================================  */
-  const onSensorChange = useCallback(async (value: SelectableValue<string>) => {
-    if (!value.value) {
+  const onSensorChange = useCallback(async (option: ComboboxOption<string> | null) => {
+    if (!option?.value) {
       return;
     }
 
-    const sensorObjId = await findSensorObjid(value.value);
+    const sensorObjId = await findSensorObjid(option.value);
 
-    setSensor(value.value);
+    setSensor(option.value);
     setSensorId(sensorObjId);
     setLists(prev => ({ ...prev, channels: [] }));
 
     const updatedQuery = {
       ...query,
-      sensor: value.value,
+      sensor: option.value,
       sensorId: sensorObjId,
     };
     onChange(updatedQuery);
@@ -474,29 +488,6 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
       }, 0);
     }
   }, [query, onChange, onRunQuery]);
-  /* ==================================================  ONPROPERTYCHANGE ==================================================  */
-  const onPropertyChange = (value: SelectableValue<string>) => {
-    if (!value?.value) { return };
-
-    const updatedQuery = {
-      ...query,
-      property: value.value,
-    };
-    onChange(updatedQuery);
-    runQueryIfChanged();
-  };
-
-  /* ==================================================  ON FILTER PROPERTY CHANGE ==================================================  */
-  const onFilterPropertyChange = (value: SelectableValue<string>) => {
-    if (!value?.value) { return };
-
-    const updatedQuery = {
-      ...query,
-      filterProperty: value.value
-    };
-    onChange(updatedQuery);
-    runQueryIfChanged();
-  };
   /* ==================================================  ON INCLUDE GROUP NAME ==================================================  */
   const onIncludeGroupName = (event: ChangeEvent<HTMLInputElement>) => {
     const updatedQuery = { ...query, includeGroupName: event.currentTarget.checked };
@@ -516,20 +507,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     const updatedQuery = { ...query, includeSensorName: event.currentTarget.checked };
     onChange(updatedQuery);
     runQueryIfChanged();
-  }
-
-  /* ==================================================  ON MANUAL METHOD CHANGE ==================================================  */
-  const onManualMethodChange = (value: SelectableValue<string>) => {
-    setManualMethod(value.value!);
-    const updatedQuery = {
-      ...query,
-      manualMethod: value.value,
-    };
-    onChange(updatedQuery);
-    runQueryIfChanged();
-  };
-
-  /* ==================================================  ON MANUAL OBJECT ID CHANGE ==================================================  */
+  }  /* ==================================================  ON MANUAL OBJECT ID CHANGE ==================================================  */
   const onManualObjectIdChange = (event: ChangeEvent<HTMLInputElement>) => {
     const value = event.currentTarget.value;
     setManualObjectId(value);
@@ -540,6 +518,22 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     onChange(updatedQuery);
     runQueryIfChanged();
   };
+
+  /* ==================================================  STREAM INTERVAL HANDLERS ==================================================  */
+  const handleStreamIntervalChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    const value = e.currentTarget.value;
+    setStreamIntervalValue(value);
+  }, []);
+
+  const handleStreamIntervalBlur = useCallback(() => {
+    const interval = Math.max(0, Math.min(60000, parseInt(streamIntervalValue, 10) || 2500));
+    const updatedQuery = {
+      ...query,
+      streamInterval: interval,
+    };
+    onChange(updatedQuery);
+    runQueryIfChanged();
+  }, [streamIntervalValue, query, onChange, runQueryIfChanged]);
 
 
 
@@ -576,22 +570,14 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
               runQueryIfChanged();
             }}
           />
-        </InlineField>
-        {query.isStreaming && (
+        </InlineField>        {query.isStreaming && (
           <InlineField label="Update Interval (ms)" labelWidth={20} tooltip="Refresh interval in milliseconds">
             <Input
               id='query-editor-stream-interval'
               type="number"
-              value={query.streamInterval || 2500} onChange={(e) => {
-                const interval = Math.max(0, Math.min(60000, parseInt(e.currentTarget.value, 10) || 2500));
-                const updatedQuery = {
-                  ...query,
-                  streamInterval: interval,
-                };
-                onChange(updatedQuery);
-                // Run query to update backend state
-                runQueryIfChanged();
-              }}
+              value={streamIntervalValue}
+              onChange={handleStreamIntervalChange}
+              onBlur={handleStreamIntervalBlur}
               placeholder="2500"
               min={0}
               max={60000}
@@ -606,64 +592,61 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   return (
     <Stack direction="column" gap={2}>
       <Stack direction="row" gap={2}>
-        <Stack direction="column" gap={1}>
-          <InlineField label="Query Type" labelWidth={20} grow>
-            <Select
-              id='query-editor-queryType'
-              options={queryTypeOptions}
-              value={query.queryType}
-              onChange={onQueryTypeChange}
-              width={47}
-            />
-          </InlineField>
+        <Stack direction="column" gap={1}>          <InlineField label="Query Type" labelWidth={20} grow>
+          <Combobox
+            id='query-editor-queryType'
+            options={queryTypeOptions}
+            value={query.queryType}
+            onChange={onQueryTypeChange}
+            width={47}
+          />
+        </InlineField>
 
           <InlineField label="Group" labelWidth={20} grow>
-            <Select
+            <Combobox
               id='query-editor-group'
-              isLoading={isLoading}
+              loading={isLoading}
               options={groupOptions}
               value={selectedGroup}
               onChange={onGroupChange}
               width={47}
-              allowCustomValue
-              isClearable
-              isDisabled={!query.queryType}
+              createCustomValue={true}
+              isClearable={true}
+              invalid={!query.queryType}
               placeholder="Select Group or type '*'"
             />
           </InlineField>
 
           <InlineField label="Device" labelWidth={20} grow>
-            <Select
+            <Combobox
               id='query-editor-device'
-              isLoading={!lists.devices.length}
+              loading={!lists.devices.length && !!query.group}
               options={deviceOptions}
               value={selectedDevice}
               onChange={onDeviceChange}
               width={47}
-              allowCustomValue
-              isClearable
-              isDisabled={!query.group}
+              createCustomValue={true}
+              isClearable={true}
+              invalid={!query.group}
               placeholder="Select Device or type '*'"
             />
           </InlineField>
         </Stack>
 
-        <Stack direction="column" gap={1}>
-          <InlineField label="Sensor" labelWidth={20} grow>
-            <Select
-              id='query-editor-sensor'
-              isLoading={!lists.sensors.length}
-              options={sensorOptions}
-              value={selectedSensor}
-              onChange={onSensorChange}
-
-              width={47}
-              allowCustomValue
-              placeholder="Select Sensor or type '*'"
-              isClearable
-              isDisabled={!query.device}
-            />
-          </InlineField>          <InlineField label="Channel" labelWidth={20} grow>
+        <Stack direction="column" gap={1}>          <InlineField label="Sensor" labelWidth={20} grow>
+          <Combobox
+            id='query-editor-sensor'
+            loading={!lists.sensors.length && !!query.device}
+            options={sensorOptions}
+            value={selectedSensor}
+            onChange={onSensorChange}
+            width={47}
+            createCustomValue={true}
+            isClearable={true}
+            invalid={!query.device}
+            placeholder="Select Sensor or type '*'"
+          />
+        </InlineField><InlineField label="Channel" labelWidth={20} grow>
             <AsyncMultiSelect
               id='query-editor-channel'
               key={sensorId}
@@ -712,29 +695,39 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
             </InlineField>
           </Stack>
         </FieldSet>
-      )}
-
-      {/* Options for Text and Raw modes */}
+      )}      {/* Options for Text and Raw modes */}
       {(isTextMode || isRawMode) && (
         <FieldSet label="Options">
           <Stack direction="row" gap={2}>
             <InlineField label="Property" labelWidth={16} tooltip="Select property type">
-              <Select
+              <Combobox
                 id='query-editor-property'
-                options={lists.properties}
+                options={lists.properties.map(p => ({ label: p.label!, value: p.value! }))}
                 value={query.property}
-                onChange={onPropertyChange}
+                onChange={(option) => {
+                  if (option?.value) {
+                    const updatedQuery = { ...query, property: option.value };
+                    onChange(updatedQuery);
+                    runQueryIfChanged();
+                  }
+                }}
                 width={32}
                 placeholder="Select property"
                 isClearable={false}
               />
             </InlineField>
             <InlineField label="Filter Property" labelWidth={16} tooltip="Select filter property">
-              <Select
+              <Combobox
                 id='query-editor-filterProperty'
-                options={lists.filterProperties}
+                options={lists.filterProperties.map(p => ({ label: p.label!, value: p.value! }))}
                 value={query.filterProperty}
-                onChange={onFilterPropertyChange}
+                onChange={(option) => {
+                  if (option?.value) {
+                    const updatedQuery = { ...query, filterProperty: option.value };
+                    onChange(updatedQuery);
+                    runQueryIfChanged();
+                  }
+                }}
                 width={32}
                 placeholder="Select filter"
                 isClearable={false}
@@ -742,30 +735,33 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
             </InlineField>
           </Stack>
         </FieldSet>
-      )}
-
-      {/* Manual API Query Section */}
+      )}      {/* Manual API Query Section */}
       {isManualMode && (
         <FieldSet label="Manual API Query">
           <Stack direction="row" gap={2}>
             <InlineField label="API Method" labelWidth={16} tooltip="Select or enter a custom PRTG API endpoint">
-              <Select
+              <Combobox
                 id='query-editor-manualMethod'
-                options={manualApiMethods}
+                options={manualApiMethods.map(method => ({
+                  label: method.label!,
+                  value: method.value!
+                }))}
                 value={manualMethod}
-                onChange={onManualMethodChange}
+                onChange={(option) => {
+                  if (option?.value) {
+                    setManualMethod(option.value);
+                    const updatedQuery = {
+                      ...query,
+                      manualMethod: option.value,
+                    };
+                    onChange(updatedQuery);
+                    runQueryIfChanged();
+                  }
+                }}
                 width={32}
                 placeholder="Select or enter API method"
-                allowCustomValue={true} onCreateOption={(customValue) => {
-                  setManualMethod(customValue);
-                  const updatedQuery = {
-                    ...query,
-                    manualMethod: customValue,
-                  };
-                  onChange(updatedQuery);
-                  runQueryIfChanged();
-                }}
-                isClearable
+                createCustomValue={true}
+                isClearable={true}
               />
             </InlineField>
             <InlineField label="Object ID" labelWidth={16} tooltip="Object ID from selected sensor">
