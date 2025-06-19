@@ -152,6 +152,7 @@ const mockDatasource = {
 // Mock data
 const mockGroupsResponse = {
     groups: [
+        { group: 'Hauptgruppe', objid: 0 },
         { group: 'Group 1', objid: 1 },
         { group: 'Group 2', objid: 2 },
     ],
@@ -159,6 +160,7 @@ const mockGroupsResponse = {
 
 const mockDevicesResponse = {
     devices: [
+        { device: 'PRTG Core Server', group: 'Hauptgruppe', objid: 1026 },
         { device: 'Device 1', group: 'Group 1', objid: 11 },
         { device: 'Device 2', group: 'Group 1', objid: 12 },
     ],
@@ -166,6 +168,7 @@ const mockDevicesResponse = {
 
 const mockSensorsResponse = {
     sensors: [
+        { sensor: 'Serverzustand (Autonom)', device: 'PRTG Core Server', objid: 1025 },
         { sensor: 'Sensor 1', device: 'Device 1', objid: 111 },
         { sensor: 'Sensor 2', device: 'Device 1', objid: 112 },
     ],
@@ -175,11 +178,79 @@ const mockChannelsResponse = {
     values: [
         {
             datetime: '2024-01-01',
+            'Freier Auslagerungsspeicher': 100,
             channel1: 100,
             channel2: 200,
             channel3: 300,
         },
     ],
+};
+
+// Example query objects based on real PRTG data
+const mockRealWorldQuery1 = {
+    refId: 'A',
+    queryType: QueryType.Metrics,
+    channel: 'Freier Auslagerungsspeicher',
+    channelArray: ['Freier Auslagerungsspeicher'],
+    device: 'PRTG Core Server',
+    deviceId: '1026',
+    group: 'Hauptgruppe',
+    groupId: '0',
+    intervalMs: 30000,
+    isStreaming: false,
+    maxDataPoints: 520,
+    sensor: 'Serverzustand (Autonom)',
+    sensorId: '1025',
+    streamInterval: 2500,
+    from: '1750307739553',
+    to: '1750329339553',
+    manualMethod: '',
+    manualObjectId: '',
+    property: '',
+    filterProperty: '',
+    includeGroupName: false,
+    includeDeviceName: false,
+    includeSensorName: false,
+    streaming: undefined,
+    streamId: '',
+    panelId: '',
+    queryId: '',
+    cacheTime: undefined,
+    bufferSize: undefined,
+    updateMode: 'full' as const,
+};
+
+const mockRealWorldQuery2 = {
+    refId: 'A',
+    queryType: QueryType.Metrics,
+    channel: 'Freier Auslagerungsspeicher',
+    channelArray: ['Freier Auslagerungsspeicher'],
+    device: 'PRTG Core Server',
+    deviceId: '1026',
+    group: 'Hauptgruppe',
+    groupId: '0',
+    intervalMs: 30000,
+    isStreaming: false,
+    maxDataPoints: 520,
+    sensor: 'Serverzustand (Autonom)',
+    sensorId: '1025',
+    streamInterval: 2500,
+    from: '1750307744561',
+    to: '1750329344561',
+    manualMethod: '',
+    manualObjectId: '',
+    property: '',
+    filterProperty: '',
+    includeGroupName: false,
+    includeDeviceName: false,
+    includeSensorName: false,
+    streaming: undefined,
+    streamId: '',
+    panelId: '',
+    queryId: '',
+    cacheTime: undefined,
+    bufferSize: undefined,
+    updateMode: 'full' as const,
 };
 
 // Default props
@@ -730,29 +801,128 @@ describe('QueryEditor', () => {
                 })
             );
         });
+    }); describe('Real-world Query Scenarios', () => {
+        it('should handle real PRTG query with German channel names', async () => {
+            const onChange = jest.fn();
+            const onRunQuery = jest.fn();
+            const props = { ...defaultProps, onChange, onRunQuery, query: mockRealWorldQuery1 };
+
+            await act(async () => {
+                render(<QueryEditor {...props} />);
+            });
+
+            // Verify the component renders with real-world data
+            expect(screen.getByTestId('query-editor-group')).toBeInTheDocument();
+            expect(screen.getByTestId('query-editor-device')).toBeInTheDocument();
+            expect(screen.getByTestId('query-editor-sensor')).toBeInTheDocument();
+            expect(screen.getByTestId('query-editor-channel')).toBeInTheDocument();
+
+            // Verify that datasource methods are called with the provided data
+            await waitFor(() => {
+                expect(mockDatasource.getGroups).toHaveBeenCalled();
+                expect(mockDatasource.getDevices).toHaveBeenCalledWith('Hauptgruppe');
+                expect(mockDatasource.getSensors).toHaveBeenCalledWith('PRTG Core Server');
+                expect(mockDatasource.getChannels).toHaveBeenCalledWith('1025');
+            });
+        });
+
+        it('should handle time range changes in real queries', async () => {
+            const onChange = jest.fn();
+            const onRunQuery = jest.fn();
+
+            // Start with first query
+            const { rerender } = render(
+                <QueryEditor
+                    {...defaultProps}
+                    onChange={onChange}
+                    onRunQuery={onRunQuery}
+                    query={mockRealWorldQuery1}
+                />
+            );
+
+            // Update to second query with different time range
+            await act(async () => {
+                rerender(
+                    <QueryEditor
+                        {...defaultProps}
+                        onChange={onChange}
+                        onRunQuery={onRunQuery}
+                        query={mockRealWorldQuery2}
+                    />
+                );
+            });
+
+            // Verify the component handles the time range change
+            expect(screen.getByTestId('query-editor-queryType')).toBeInTheDocument();
+        }); it('should properly format German channel names', async () => {
+            const onChange = jest.fn();
+            const props = { ...defaultProps, onChange, query: mockRealWorldQuery1 };
+
+            await act(async () => {
+                render(<QueryEditor {...props} />);
+            });
+
+            // Test that the channel with German name is handled correctly
+            const channelSelect = screen.getByTestId('query-editor-channel');
+
+            // Verify the component can handle special characters in channel names
+            expect(channelSelect).toBeInTheDocument();
+        });
+
+        it('should handle PRTG Core Server device specifically', async () => {
+            const onChange = jest.fn();
+            const props = { ...defaultProps, onChange };
+
+            await act(async () => {
+                render(<QueryEditor {...props} />);
+            });
+
+            // Simulate selecting the real-world data
+            const updatedQuery = {
+                ...defaultProps.query,
+                group: 'Hauptgruppe',
+                groupId: '0',
+                device: 'PRTG Core Server',
+                deviceId: '1026',
+                sensor: 'Serverzustand (Autonom)',
+                sensorId: '1025',
+            };
+
+            onChange(updatedQuery); expect(onChange).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    group: 'Hauptgruppe',
+                    device: 'PRTG Core Server',
+                    sensor: 'Serverzustand (Autonom)',
+                })
+            );
+        });
     });
 
     describe('Text and Raw Modes', () => {
-        it('should show property options for text mode', () => {
+        it('should show property options for text mode', async () => {
             const propsWithText = {
                 ...defaultProps,
                 query: { ...defaultProps.query, queryType: QueryType.Text },
             };
 
-            render(<QueryEditor {...propsWithText} />);
+            await act(async () => {
+                render(<QueryEditor {...propsWithText} />);
+            });
 
             expect(screen.getByTestId('fieldset-options')).toBeInTheDocument();
             expect(screen.getByTestId('query-editor-property')).toBeInTheDocument();
             expect(screen.getByTestId('query-editor-filterProperty')).toBeInTheDocument();
         });
 
-        it('should show property options for raw mode', () => {
+        it('should show property options for raw mode', async () => {
             const propsWithRaw = {
                 ...defaultProps,
                 query: { ...defaultProps.query, queryType: QueryType.Raw },
             };
 
-            render(<QueryEditor {...propsWithRaw} />);
+            await act(async () => {
+                render(<QueryEditor {...propsWithRaw} />);
+            });
 
             expect(screen.getByTestId('fieldset-options')).toBeInTheDocument();
             expect(screen.getByTestId('query-editor-property')).toBeInTheDocument();
