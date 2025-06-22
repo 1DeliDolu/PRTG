@@ -695,7 +695,9 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
             </InlineField>
           </Stack>
         </FieldSet>
-      )}      {/* Options for Text and Raw modes */}
+      )}
+      
+      {/* Options for Text and Raw modes */}
       {(isTextMode || isRawMode) && (
         <FieldSet label="Options">
           <Stack direction="row" gap={2}>
