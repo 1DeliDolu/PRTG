@@ -10,7 +10,6 @@ datasources:
     editable: true
     jsonData:
       path: 'prtg.musta'
-      cacheTime: 6
-      timezone: 'Europe/Berlin'
+      cacheTime: 6000
     secureJsonData:
       apiKey: 'BCQTDVLIIDBZCH64WAYXGOMUQUXENXEHI3IUGGUX3Y======'
