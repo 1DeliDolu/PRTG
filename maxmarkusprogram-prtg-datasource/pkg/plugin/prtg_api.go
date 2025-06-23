@@ -262,7 +262,7 @@ func (a *Api) GetHistoricalData(sensorID string, startDate, endDate time.Time) (
 		avg = "120"
 	case hours <= 48:
 		avg = "300"
-	case hours <= 72:
+	case hours <= 96:
 		avg = "600"
 	case hours <= 168:
 		avg = "900"
@@ -270,8 +270,21 @@ func (a *Api) GetHistoricalData(sensorID string, startDate, endDate time.Time) (
 		avg = "1800"
 	case hours <= 720:
 		avg = "3600"
-	default:
+	case hours <= 1440:
+		avg = "7200"
+	case hours <= 2880:
+		avg = "14400"
+	case hours <= 4320:
+		avg = "28800"
+	case hours <= 10080:
+		avg = "43200"
+	case hours <= 20160:
+		avg = "57600"	
+	case hours <= 43200:
 		avg = "86400"
+	default:
+		avg = "172800" // 2 days
+	
 	}
 
 	params := map[string]string{
