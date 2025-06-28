@@ -188,7 +188,7 @@ jobs:
       - name: Wait for grafana server
         uses: grafana/plugin-actions/wait-for-grafana@main # zizmor: ignore[unpinned-uses] provided by grafana
         with:
-          url: http://localhost:3000/login
+          url: http://localhost:3001/login
 
       - name: Install Playwright Browsers
         run: npm exec playwright install chromium --with-deps

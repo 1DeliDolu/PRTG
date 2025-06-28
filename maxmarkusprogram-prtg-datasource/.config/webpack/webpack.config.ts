@@ -270,7 +270,7 @@ const config = async (env: Env): Promise<Configuration> => {
 
   if (isWSL()) {
     baseConfig.watchOptions = {
-      poll: 3000,
+      poll: 3001,
       ignored: /node_modules/,
     };
   }
