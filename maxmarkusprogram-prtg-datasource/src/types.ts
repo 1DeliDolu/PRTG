@@ -99,7 +99,7 @@ export const manualApiMethods: ManualApiMethod[] = [
 export interface MyDataSourceOptions extends DataSourceJsonData {
   path?: string;
   cacheTime?: number;
-  timezone?: string;
+  timeZone?: string;
 }
 
 export interface MySecureJsonData {

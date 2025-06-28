@@ -62,7 +62,7 @@ func (a *Api) SetTimeout(timeout time.Duration) {
 func (a *Api) baseExecuteRequest(endpoint string, params map[string]string) ([]byte, error) {
 	apiUrl, err := a.buildApiUrl(endpoint, params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build URL: %w", err)
+		return nil, fmt.Errorf("failed to build URL for endpoint '%s': %w", endpoint, err)
 	}
 
 	client := &http.Client{
@@ -75,7 +75,7 @@ func (a *Api) baseExecuteRequest(endpoint string, params map[string]string) ([]b
 
 	req, err := http.NewRequest("GET", apiUrl, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create request for endpoint '%s': %w", endpoint, err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -83,21 +83,21 @@ func (a *Api) baseExecuteRequest(endpoint string, params map[string]string) ([]b
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+		return nil, fmt.Errorf("request failed for endpoint '%s': %w", endpoint, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized {
-		log.DefaultLogger.Error("Access denied: please verify API token and permissions")
-		return nil, fmt.Errorf("access denied: please verify API token and permissions")
+		log.DefaultLogger.Error("Access denied: please verify API token and permissions", "endpoint", endpoint)
+		return nil, fmt.Errorf("access denied: please verify API token and permissions (endpoint: %s)", endpoint)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return nil, fmt.Errorf("unexpected status code: %d for endpoint: %s", resp.StatusCode, endpoint)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("failed to read response body for endpoint '%s': %w", endpoint, err)
 	}
 	return body, nil
 }

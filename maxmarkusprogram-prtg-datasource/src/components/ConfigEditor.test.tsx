@@ -80,7 +80,7 @@ describe('ConfigEditor', () => {
             jsonData: {
                 path: '',
                 cacheTime: 60,
-                timezone: 'UTC',
+                timeZone: 'UTC',
             },
             secureJsonFields: {},
             secureJsonData: {},

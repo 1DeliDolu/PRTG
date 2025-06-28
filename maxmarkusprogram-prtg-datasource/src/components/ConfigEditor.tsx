@@ -50,7 +50,8 @@ export function ConfigEditor(props: Props) {
     const inputValue = event.target.value;
 
     if (inputValue === '') {
-      updatedJsonData.cacheTime = 60; // Default to 60 seconds
+      // Do not set a default value, just clear the cacheTime
+      delete updatedJsonData.cacheTime;
     } else {
       const value = parseInt(inputValue, 10);
       // Set cache time, ensuring minimum value of 10 seconds
@@ -67,14 +68,15 @@ export function ConfigEditor(props: Props) {
       jsonData: updatedJsonData,
     });
   };
+
   // Timezone selection handler
-  const onTimezoneChange = (selectedOption: any) => {
+  const onTimezoneChange = (selectedOption: { value: string } | null) => {
     // Update the timezone directly when selection changes
     onOptionsChange({
       ...options,
       jsonData: {
         ...jsonData,
-        timezone: selectedOption.value,
+        timeZone: selectedOption?.value || '',
       },
     });
   };
@@ -116,7 +118,7 @@ export function ConfigEditor(props: Props) {
       <InlineField label="Timezone" labelWidth={14} interactive tooltip={'Select the timezone'} required>
         <Combobox
           options={timezoneOptions}
-          value={jsonData.timezone}
+          value={jsonData.timeZone}
           onChange={onTimezoneChange}
           width={60}
         />
