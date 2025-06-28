@@ -10,7 +10,7 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 )
 
-var defaultTimezone = "Europe/Berlin" // Default PRTG timezone
+var defaultTimezone = "Avrupa/Istanbul" // Default PRTG timezone
 
 // SetDefaultTimezone sets the default timezone for parsing dates
 // Call this during plugin initialization with the timezone from settings
@@ -28,6 +28,8 @@ func ParseTimeInit(s *models.PluginSettings) {
 }
 
 func parsePRTGDateTime(datetime string) (time.Time, string, error) {
+	// Log which timezone is being used for parsing
+	backend.Logger.Info("Parsing datetime", "input", datetime, "timezone", defaultTimezone)
 	// Remove any whitespace
 	datetime = strings.TrimSpace(datetime)
 
@@ -80,8 +82,10 @@ func parsePRTGDateTime(datetime string) (time.Time, string, error) {
 		"2006-01-02T15:04:05",     // ISO 8601 without TZ
 		"2006-01-02 15:04:05",     // ISO with space
 		"2006/01/02 15:04:05",     // Slash-separated
-		"01/02/2006 03:04:05 PM",  // US 12-hour
-		"01/02/2006 15:04:05",     // US 24-hour
+		"01/02/2006 03:04:05 PM",  // US 12-hour, zero-padded
+		"01/02/2006 15:04:05",     // US 24-hour, zero-padded
+		"1/2/2006 3:04:05 PM",     // US 12-hour, single digit (EKLENDİ)
+		"1/2/2006 15:04:05",       // US 24-hour, single digit (EKLENDİ)
 		"02 Jan 2006 15:04:05",    // DMY with text month
 		"02 Jan 2006 03:04:05 PM", // DMY with text month, 12-hour
 		"Jan 2, 2006 15:04:05",    // US-style text month
@@ -89,6 +93,7 @@ func parsePRTGDateTime(datetime string) (time.Time, string, error) {
 		"2006-01-02",              // Just date in ISO format
 		"02.01.2006",              // Just date in European format
 		"01/02/2006",              // Just date in US format
+		"1/2/2006",                // Just date in US format, single digit
 	}
 
 	var lastErr error

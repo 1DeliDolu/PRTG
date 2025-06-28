@@ -44,6 +44,9 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 		return nil, err
 	}
 
+	// Set the default timezone from config (frontend)
+	SetDefaultTimezone(config.Timezone)
+
 	// Get cache time from settings with default
 	var cacheTime time.Duration = 60 * time.Second // default 60 seconds
 	if config.CacheTime > 0 {
@@ -107,7 +110,7 @@ func (d *Datasource) ClearAllCaches() {
 	if apiImpl, ok := d.api.(*Api); ok {
 		apiImpl.ClearCache()
 	}
-	
+
 	d.logger.Debug("All caches cleared")
 }
 
@@ -295,15 +298,32 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		}, nil
 	}
 
-	detailsJSON, _ := json.Marshal(map[string]interface{}{
+	// Load the configured timezone from settings
+	config, err := models.LoadPluginSettings(*req.PluginContext.DataSourceInstanceSettings)
+	timezone := ""
+	if err == nil {
+		timezone = config.Timezone
+	}
+
+	details := map[string]interface{}{
 		"version":      status.Version,
 		"totalSensors": status.TotalSens,
-	})
+	}
+	if timezone != "" {
+		details["timezone"] = timezone
+	}
+
+	message := fmt.Sprintf("Data source is working. PRTG Version: %s", status.Version)
+	if timezone != "" {
+		message = fmt.Sprintf("Data source is working. PRTG Version: %s | Timezone: %s", status.Version, timezone)
+	}
+
+	detailsJSON, _ := json.Marshal(details)
 
 	return &backend.CheckHealthResult{
 		Status:      backend.HealthStatusOk,
-		Message:     fmt.Sprintf("Data source is working. PRTG Version: %s", status.Version),
-		JSONDetails: detailsJSON, // Fixed: Changed JsonDetails to JSONDetails
+		Message:     message,
+		JSONDetails: detailsJSON,
 	}, nil
 }
 
