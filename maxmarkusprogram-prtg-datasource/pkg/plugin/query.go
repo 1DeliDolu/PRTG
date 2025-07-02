@@ -661,7 +661,21 @@ func (d *Datasource) handlePropertyQuery(ctx context.Context, qm queryModel, pro
 	}
 
 	frameName := fmt.Sprintf("%s_%s_%s", baseFrameName, qm.Property, filterProperty)
-	frame := createPropertyFrame(timesRT, valuesRT, frameName, qm.Property, filterProperty)
+
+	// Build display name with optional prefixes (like in handleMetricsQuery)
+	displayName := qm.Property
+	if qm.IncludeGroupName && qm.Group != "" {
+		displayName = fmt.Sprintf("%s - %s", qm.Group, displayName)
+	}
+	if qm.IncludeDeviceName && qm.Device != "" {
+		displayName = fmt.Sprintf("%s - %s", qm.Device, displayName)
+	}
+	if qm.IncludeSensorName && qm.Sensor != "" {
+		displayName = fmt.Sprintf("%s - %s", qm.Sensor, displayName)
+	}
+	displayName = fmt.Sprintf("%s (%s)", displayName, filterProperty)
+
+	frame := createPropertyFrameWithDisplayName(timesRT, valuesRT, frameName, displayName)
 
 	return backend.DataResponse{
 		Frames: []*data.Frame{frame},
@@ -669,7 +683,7 @@ func (d *Datasource) handlePropertyQuery(ctx context.Context, qm queryModel, pro
 }
 
 /* =================================== FRAME CREATOR ========================================== */
-func createPropertyFrame(times []time.Time, values []interface{}, frameName, property, filterProperty string) *data.Frame {
+func createPropertyFrameWithDisplayName(times []time.Time, values []interface{}, frameName, displayName string) *data.Frame {
 	if len(times) == 0 || len(values) == 0 {
 		return data.NewFrame(frameName + "_empty")
 	}
@@ -703,7 +717,6 @@ func createPropertyFrame(times []time.Time, values []interface{}, frameName, pro
 		valueField = data.NewField("Value", nil, strVals)
 	}
 
-	displayName := fmt.Sprintf("%s - (%s)", property, filterProperty)
 	valueField.Config = &data.FieldConfig{
 		DisplayName: displayName,
 	}

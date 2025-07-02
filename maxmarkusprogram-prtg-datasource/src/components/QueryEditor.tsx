@@ -669,7 +669,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
 
 
       {/* Show display name options for both Metrics and Streaming */}
-      {(isMetricsMode || query.isStreaming) && (
+      {(isMetricsMode || query.isStreaming || isRawMode || isTextMode) && (
         <FieldSet label="Display Options">
           <Stack direction="row" gap={1}>
             <InlineField label="Include Group" labelWidth={16}>
