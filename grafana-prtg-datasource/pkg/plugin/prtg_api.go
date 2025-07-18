@@ -51,8 +51,8 @@ func (a *Api) buildApiUrl(method string, params map[string]string) (string, erro
 // SetTimeout aktualisiert das Timeout für API-Anfragen.
 func (a *Api) SetTimeout(timeout time.Duration) {
 	if timeout > 0 {
-		if timeout < 10*time.Second {
-			timeout = 10 * time.Second // Minimum 10 seconds
+		if timeout < 20*time.Second {
+			timeout = 20 * time.Second // Minimum 20 seconds
 		}
 		a.timeout = timeout
 	}
@@ -62,7 +62,7 @@ func (a *Api) SetTimeout(timeout time.Duration) {
 func (a *Api) baseExecuteRequest(endpoint string, params map[string]string) ([]byte, error) {
 	apiUrl, err := a.buildApiUrl(endpoint, params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build URL: %w", err)
+		return nil, fmt.Errorf("failed to build URL for endpoint '%s': %w", endpoint, err)
 	}
 
 	client := &http.Client{
@@ -75,7 +75,7 @@ func (a *Api) baseExecuteRequest(endpoint string, params map[string]string) ([]b
 
 	req, err := http.NewRequest("GET", apiUrl, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create request for endpoint '%s': %w", endpoint, err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -83,21 +83,21 @@ func (a *Api) baseExecuteRequest(endpoint string, params map[string]string) ([]b
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+		return nil, fmt.Errorf("request failed for endpoint '%s': %w", endpoint, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized {
-		log.DefaultLogger.Error("Access denied: please verify API token and permissions")
-		return nil, fmt.Errorf("access denied: please verify API token and permissions")
+		log.DefaultLogger.Error("Access denied: please verify API token and permissions", "endpoint", endpoint)
+		return nil, fmt.Errorf("access denied: please verify API token and permissions (endpoint: %s)", endpoint)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return nil, fmt.Errorf("unexpected status code: %d for endpoint: %s", resp.StatusCode, endpoint)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("failed to read response body for endpoint '%s': %w", endpoint, err)
 	}
 	return body, nil
 }
@@ -134,12 +134,7 @@ func (a *Api) GetGroups() (*PrtgGroupListResponse, error) {
 		return nil, fmt.Errorf("empty response from PRTG API")
 	}
 
-	// Log raw response for debugging
-	log.DefaultLogger.Debug("Raw PRTG response",
-		"endpoint", "groups",
-		"responseSize", len(body),
-		"response", string(body),
-	)
+	// Debug logging removed to reduce terminal output
 
 	var response PrtgGroupListResponse
 	if err := json.Unmarshal(body, &response); err != nil {
@@ -235,8 +230,8 @@ func (a *Api) GetHistoricalData(sensorID string, startDate, endDate time.Time) (
 		return nil, fmt.Errorf("invalid query: missing sensor ID")
 	}
 
-	// Convert to PRTG's timezone (Europe/Berlin)
-	loc, err := time.LoadLocation("Europe/Berlin")
+	// Convert to PRTG's timezone (Europe/Istanbul)
+	loc, err := time.LoadLocation("Europe/Istanbul")
 	if err != nil {
 		loc = time.Local
 	}
@@ -262,7 +257,7 @@ func (a *Api) GetHistoricalData(sensorID string, startDate, endDate time.Time) (
 		avg = "120"
 	case hours <= 48:
 		avg = "300"
-	case hours <= 72:
+	case hours <= 96:
 		avg = "600"
 	case hours <= 168:
 		avg = "900"
@@ -270,8 +265,21 @@ func (a *Api) GetHistoricalData(sensorID string, startDate, endDate time.Time) (
 		avg = "1800"
 	case hours <= 720:
 		avg = "3600"
-	default:
+	case hours <= 1440:
+		avg = "7200"
+	case hours <= 2880:
+		avg = "14400"
+	case hours <= 4320:
+		avg = "28800"
+	case hours <= 10080:
+		avg = "43200"
+	case hours <= 20160:
+		avg = "57600"	
+	case hours <= 43200:
 		avg = "86400"
+	default:
+		avg = "172800" // 2 days
+	
 	}
 
 	params := map[string]string{
@@ -284,12 +292,7 @@ func (a *Api) GetHistoricalData(sensorID string, startDate, endDate time.Time) (
 		"usecaption": "1",
 	}
 
-	log.DefaultLogger.Debug("Requesting historical data",
-		"sensorID", sensorID,
-		"startDate", sdate,
-		"endDate", edate,
-		"avg", avg,
-	)
+	// Debug logging removed to reduce terminal output
 
 	// Use cacheTime for response caching
 	cacheKey := fmt.Sprintf("hist_%s_%s_%s", sensorID, startDate.Format(time.RFC3339), endDate.Format(time.RFC3339))
@@ -319,11 +322,7 @@ func (a *Api) GetHistoricalData(sensorID string, startDate, endDate time.Time) (
 
 	// Validate response
 	if len(response.HistData) == 0 {
-		log.DefaultLogger.Debug("No data found for the given time range",
-			"sensorID", sensorID,
-			"startDate", startDate,
-			"endDate", endDate,
-		)
+		// Debug logging removed to reduce terminal output
 		return &response, nil // Return empty response instead of error
 	}
 

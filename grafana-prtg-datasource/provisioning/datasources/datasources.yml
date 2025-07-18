@@ -1,7 +1,7 @@
 apiVersion: 1
 
 datasources:
-  - name: 'PRTG-GRAFANA'
+  - name: 'GRAFANA-PRTG'
     type: 'grafana-prtg-datasource'
     access: proxy
     isDefault: false
@@ -12,4 +12,4 @@ datasources:
       path: 'prtg.musta'
       cacheTime: 6000
     secureJsonData:
-      apiKey: 'BCQTDVLIIDBZCH64WAYXGOMUQUXENXEHI3IUGGUX3Y======'
+      apiKey: 'MGHTXTGSLECXKUPQK7PVSWQ3OBL4QMGO23OJKFNIZI======'

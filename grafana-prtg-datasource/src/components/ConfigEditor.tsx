@@ -50,7 +50,8 @@ export function ConfigEditor(props: Props) {
     const inputValue = event.target.value;
 
     if (inputValue === '') {
-      updatedJsonData.cacheTime = 60; // Default to 60 seconds
+      // Do not set a default value, just clear the cacheTime
+      delete updatedJsonData.cacheTime;
     } else {
       const value = parseInt(inputValue, 10);
       // Set cache time, ensuring minimum value of 10 seconds
@@ -67,60 +68,63 @@ export function ConfigEditor(props: Props) {
       jsonData: updatedJsonData,
     });
   };
+
   // Timezone selection handler
-  const onTimezoneChange = (selectedOption: any) => {
+  const onTimezoneChange = (selectedOption: { value: string } | null) => {
     // Update the timezone directly when selection changes
     onOptionsChange({
       ...options,
       jsonData: {
         ...jsonData,
-        timezone: selectedOption.value,
+        timeZone: selectedOption?.value || '',
       },
     });
-    };
+  };
 
   return (
     <div>
       <InlineField label="Path" labelWidth={14} interactive tooltip="Json field returned to frontend">
-        <Input
-          id="config-editor-path"
-          onChange={onPathChange}
-          value={jsonData.path || ''}
-          placeholder="Enter the path, <your.prtg.server> without https://"
-          width={60}
-        />
+      <Input
+        id="config-editor-path"
+        onChange={onPathChange}
+        value={jsonData.path || ''}
+        placeholder="Enter the path, <your.prtg.server> without https://"
+        width={60}
+      />
       </InlineField>
       <InlineField label="API Key" labelWidth={14} interactive tooltip="Secure json field (backend only)">
-        <SecretInput
-          required
-          id="config-editor-api-key"
-          isConfigured={secureJsonFields?.apiKey || false}
-          value={secureJsonData?.apiKey || ''}
-          placeholder="Enter your API key"
-          width={60}
-          onReset={onResetAPIKey}
-          onChange={onAPIKeyChange}
-        />
+      <SecretInput
+        required
+        id="config-editor-api-key"
+        isConfigured={secureJsonFields?.apiKey || false}
+        value={secureJsonData?.apiKey || ''}
+        placeholder="Enter your API key"
+        width={60}
+        onReset={onResetAPIKey}
+        onChange={onAPIKeyChange}
+      />
       </InlineField>
       <InlineField label="Cache Time" labelWidth={14} interactive tooltip="Cache time in seconds">
-        <Input
-          id="config-editor-cache-time"
-          onChange={onCacheTimeChange}
-          value={jsonData.cacheTime || 60}
-          placeholder="Enter the cache time in seconds"
-          width={60}
-          type="number"
-          min={10}
-        />
+      <Input
+        id="config-editor-cache-time"
+        onChange={onCacheTimeChange}
+        value={jsonData.cacheTime || 60}
+        placeholder="Enter the cache time in seconds"
+        width={60}
+        type="number"
+        min={10}
+      />
       </InlineField>
       <InlineField label="Timezone" labelWidth={14} interactive tooltip={'Select the timezone'} required>
-        <Combobox
-          options={timezoneOptions}
-          value={jsonData.timezone}
-          onChange={onTimezoneChange}
-          width={60}
-        />
+      <Combobox
+        options={timezoneOptions}
+        value={jsonData.timeZone || ''}
+        placeholder="Europe/Istanbul"
+        onChange={onTimezoneChange}
+        width={60}
+      />
       </InlineField>
     </div>
   );
 }
+// This component is a configuration editor for a Grafana data source plugin.

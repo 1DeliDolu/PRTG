@@ -14,7 +14,6 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend/datasource"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/experimental/concurrent"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
@@ -22,7 +21,6 @@ var (
 	_ backend.CheckHealthHandler    = (*Datasource)(nil)
 	_ instancemgmt.InstanceDisposer = (*Datasource)(nil)
 	_ backend.CallResourceHandler   = (*Datasource)(nil)
-	_ backend.StreamHandler         = (*Datasource)(nil)
 )
 
 // Add queue and mutex at package level
@@ -44,6 +42,9 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 		return nil, err
 	}
 
+	// Set the default timezone from config (frontend)
+	SetDefaultTimezone(config.Timezone)
+
 	// Get cache time from settings with default
 	var cacheTime time.Duration = 60 * time.Second // default 60 seconds
 	if config.CacheTime > 0 {
@@ -52,24 +53,20 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 
 	baseURL := fmt.Sprintf("https://%s", config.Path)
 	logger := NewLogger()
-	tracer := NewTracer(logger)
-	metrics := NewMetrics(prometheus.DefaultRegisterer)
+	
+
 
 	// Use apitoken parameter name to match PRTG API requirements
 	ds := &Datasource{
 		baseURL:    baseURL,
 		api:        NewApi(baseURL, config.Secrets.ApiKey, cacheTime, 10*time.Second),
 		logger:     logger,
-		tracer:     tracer,
-		metrics:    metrics,
+	
+
 		queryCache: make(map[string]*QueryCacheEntry), // Updated initialization
 		cacheMutex: sync.RWMutex{},
 		cacheTime:  cacheTime,
-		streamManager: &streamManager{
-			streams:          make(map[string]*activeStream),
-			activeStreams:    make(map[string]map[string]*activeStream), // Map of panel -> streams
-			defaultCacheTime: cacheTime,                                 // Add default cache time to stream manager
-		},
+		
 	}
 
 	// Initialize query type multiplexer
@@ -107,15 +104,14 @@ func (d *Datasource) ClearAllCaches() {
 	if apiImpl, ok := d.api.(*Api); ok {
 		apiImpl.ClearCache()
 	}
-	
+
 	d.logger.Debug("All caches cleared")
 }
 
 /*  ########################################### QueryData ################################################### */
 func (d *Datasource) handleSingleQueryData(ctx context.Context, q concurrent.Query) backend.DataResponse {
-	// Start tracing span for single query
-	ctx, span := d.tracer.StartSpan(ctx, "handleSingleQueryData")
-	defer span.End()
+	
+
 
 	start := time.Now()
 	d.logger.Debug("Processing concurrent query",
@@ -127,7 +123,6 @@ func (d *Datasource) handleSingleQueryData(ctx context.Context, q concurrent.Que
 
 	// Record metrics and logging
 	duration := time.Since(start)
-	d.metrics.ObserveQueryDuration("single_query", duration.Seconds())
 	d.logger.Debug("Concurrent query processed",
 		"refId", q.DataQuery.RefID, // Update: Using the correct field name
 		"duration", duration,
@@ -208,8 +203,7 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 
 // Add these new methods to handle different query types
 func (d *Datasource) handleMetricsQueryType(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	ctx, span := d.tracer.StartSpan(ctx, "handleMetricsQueryType")
-	defer span.End()
+	
 
 	response := backend.NewQueryDataResponse()
 
@@ -224,8 +218,7 @@ func (d *Datasource) handleMetricsQueryType(ctx context.Context, req *backend.Qu
 }
 
 func (d *Datasource) handleManualQueryType(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	_, span := d.tracer.StartSpan(ctx, "handleManualQueryType")
-	defer span.End()
+	
 
 	response := backend.NewQueryDataResponse()
 
@@ -245,8 +238,7 @@ func (d *Datasource) handleManualQueryType(ctx context.Context, req *backend.Que
 }
 
 func (d *Datasource) handlePropertyQueryType(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	ctx, span := d.tracer.StartSpan(ctx, "handlePropertyQueryType")
-	defer span.End()
+	
 
 	response := backend.NewQueryDataResponse()
 
@@ -295,15 +287,32 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		}, nil
 	}
 
-	detailsJSON, _ := json.Marshal(map[string]interface{}{
+	// Load the configured timezone from settings
+	config, err := models.LoadPluginSettings(*req.PluginContext.DataSourceInstanceSettings)
+	timezone := ""
+	if err == nil {
+		timezone = config.Timezone
+	}
+
+	details := map[string]interface{}{
 		"version":      status.Version,
 		"totalSensors": status.TotalSens,
-	})
+	}
+	if timezone != "" {
+		details["timezone"] = timezone
+	}
+
+	message := fmt.Sprintf("Data source is working. PRTG Version: %s", status.Version)
+	if timezone != "" {
+		message = fmt.Sprintf("Data source is working. PRTG Version: %s | Timezone: %s", status.Version, timezone)
+	}
+
+	detailsJSON, _ := json.Marshal(details)
 
 	return &backend.CheckHealthResult{
 		Status:      backend.HealthStatusOk,
-		Message:     fmt.Sprintf("Data source is working. PRTG Version: %s", status.Version),
-		JSONDetails: detailsJSON, // Fixed: Changed JsonDetails to JSONDetails
+		Message:     message,
+		JSONDetails: detailsJSON,
 	}, nil
 }
 
@@ -381,37 +390,3 @@ func sendErrorResponse(sender backend.CallResourceResponseSender, message string
 	})
 }
 
-// Add helper method to track active streams by panel
-func (d *Datasource) trackStream(panelId string, streamId string, stream *activeStream) {
-	d.streamManager.mu.Lock()
-	defer d.streamManager.mu.Unlock()
-
-	// Initialize map for this panel if needed
-	if _, exists := d.streamManager.activeStreams[panelId]; !exists {
-		d.streamManager.activeStreams[panelId] = make(map[string]*activeStream)
-	}
-
-	// Add stream to both maps for quick lookup
-	d.streamManager.streams[streamId] = stream
-	d.streamManager.activeStreams[panelId][streamId] = stream
-
-	d.logger.Debug("Stream tracked",
-		"panelId", panelId,
-		"streamId", streamId,
-		"totalStreams", len(d.streamManager.streams),
-		"panelStreams", len(d.streamManager.activeStreams[panelId]))
-}
-
-// Add helper method to get all streams for a panel
-func (d *Datasource) getStreamsByPanel(panelId string) []*activeStream {
-	d.streamManager.mu.RLock()
-	defer d.streamManager.mu.RUnlock()
-
-	result := make([]*activeStream, 0, 5) // Preallocate with common size
-	if panelStreams, exists := d.streamManager.activeStreams[panelId]; exists {
-		for _, stream := range panelStreams {
-			result = append(result, stream)
-		}
-	}
-	return result
-}

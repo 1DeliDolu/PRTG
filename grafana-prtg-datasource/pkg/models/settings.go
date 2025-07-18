@@ -12,7 +12,7 @@ type PluginSettings struct {
 	Path      string                `json:"path"`
 	CacheTime time.Duration         `json:"cacheTime"`
 	Secrets   *SecretPluginSettings `json:"-"`
-	Timezone  string                `json:"timezone"`
+	Timezone  string                `json:"timeZone"`
 }
 
 type SecretPluginSettings struct {
@@ -20,26 +20,23 @@ type SecretPluginSettings struct {
 }
 
 func LoadPluginSettings(source backend.DataSourceInstanceSettings) (*PluginSettings, error) {
-	settings := PluginSettings{
-		// Default timezone to Europe/Berlin (PRTG is typically installed on Windows in Europe)
-		Timezone: "Europe/Berlin",
-	}
+	settings := PluginSettings{}
 
-	// Try to unmarshal settings
+	// Unmarshal settings from frontend
 	err := json.Unmarshal(source.JSONData, &settings)
 	if err != nil {
 		return nil, fmt.Errorf("could not unmarshal PluginSettings json: %w", err)
 	}
 
-	// Set default timezone if not configured
+	// Only set default timezone if not provided by frontend
 	if settings.Timezone == "" {
-		settings.Timezone = "Europe/Berlin"
-		backend.Logger.Debug("No timezone configured in settings, using default", "timezone", settings.Timezone)
+		settings.Timezone = "Europe/Istanbul" // Default PRTG timezone
+		backend.Logger.Warn("No timezone provided in settings, using default Europe/Istanbul")
 	} else {
-		backend.Logger.Debug("Using configured timezone from settings", "timezone", settings.Timezone)
+		backend.Logger.Info("Using configured timezone from settings", "timezone", settings.Timezone)
 	}
 
-	// Try to validate timezone
+	// Validate timezone
 	_, err = time.LoadLocation(settings.Timezone)
 	if err != nil {
 		backend.Logger.Warn("Invalid timezone in settings, using UTC",

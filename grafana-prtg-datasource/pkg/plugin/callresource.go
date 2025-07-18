@@ -5,34 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 )
 
 /* ######################################## CallResource ##############################################################  */
 func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResourceRequest, sender backend.CallResourceResponseSender) error {
-	ctx, span := d.tracer.StartSpan(ctx, "CallResource") // Now properly using ctx
-
-	backend.Logger.Debug("CallResource", "ctx", ctx)
-
-	defer span.End()
-
-	start := time.Now()
-	defer func() {
-		duration := time.Since(start)
-		d.metrics.ObserveAPILatency(req.Path, duration.Seconds())
-		d.logger.Info("Resource call completed",
-			"path", req.Path,
-			"duration", duration,
-		)
-	}()
-
-	d.logger.Debug("Resource call started",
-		"path", req.Path,
-		"method", req.Method,
-	)
-
 	// Queue the incoming request
 	queueLock.Lock()
 	requestQueue = append(requestQueue, &ResourceRequest{

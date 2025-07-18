@@ -4,125 +4,140 @@ import { ConfigEditor } from './ConfigEditor';
 import { DataSourcePluginOptionsEditorProps } from '@grafana/data';
 import { MyDataSourceOptions, MySecureJsonData } from '../types';
 
+// Mock the timezone module
+jest.mock('../timezone', () => ({
+    timezoneOptions: [
+        { label: 'UTC', value: 'UTC' },
+        { label: 'America/New_York', value: 'America/New_York' },
+    ],
+}));
+
 // Mock Grafana UI components
 jest.mock('@grafana/ui', () => ({
-    InlineField: ({ children, label }: any) => (
-        <div data-testid={`inline-field-${label.toLowerCase().replace(' ', '-')}`}>
+    InlineField: ({ label, children }: any) => (
+        <div data-testid={`field-${label.toLowerCase().replace(' ', '-')}`}>
             <label>{label}</label>
             {children}
         </div>
     ),
-    Input: ({ id, onChange, value, placeholder }: any) => (
+    Input: ({ id, onChange, value, ...props }: any) => (
         <input
             data-testid={id}
             onChange={onChange}
             value={value}
-            placeholder={placeholder}
+            {...props}
         />
     ),
-    SecretInput: ({ id, onChange, onReset, value, isConfigured }: any) => (
+    SecretInput: ({ id, onChange, value, onReset, isConfigured, ...props }: any) => (
         <div>
             <input
                 data-testid={id}
                 onChange={onChange}
                 value={value}
+                {...props}
             />
             <button data-testid={`${id}-reset`} onClick={onReset}>
                 Reset
             </button>
         </div>
     ),
+    Combobox: ({ options, value, onChange }: any) => (
+        <select
+            data-testid="timezone-combobox"
+            value={value}
+            onChange={(e) => onChange({ value: e.target.value })}
+        >
+            {options.map((option: any) => (
+                <option key={option.value} value={option.value}>
+                    {option.label}
+                </option>
+            ))}
+        </select>
+    ),
 }));
 
 describe('ConfigEditor', () => {
     const mockOnOptionsChange = jest.fn();
-    
+
     const defaultProps: DataSourcePluginOptionsEditorProps<MyDataSourceOptions, MySecureJsonData> = {
         onOptionsChange: mockOnOptionsChange,
         options: {
+            id: 1,
+            uid: 'test-uid',
+            orgId: 1,
+            name: 'Test DataSource',
+            type: 'test-type',
+            typeName: 'Test Type',
+            typeLogoUrl: '',
+            access: 'proxy',
+            url: '',
+            user: '',
+            database: '',
+            basicAuth: false,
+            basicAuthUser: '',
+            withCredentials: false,
+            isDefault: false,
             jsonData: {
-                path: 'test.server.com',
-                cacheTime: 6000,
+                path: '',
+                cacheTime: 60,
+                timeZone: 'UTC',
             },
-            secureJsonFields: {
-                apiKey: false,
-            },
-            secureJsonData: {
-                apiKey: 'test-api-key',
-            },
+            secureJsonFields: {},
+            secureJsonData: {},
+            readOnly: false,
+            version: 1,
         },
-    } as any;
+    };
 
     beforeEach(() => {
         jest.clearAllMocks();
     });
 
-    it('renders all input fields', () => {
+    it('renders all form fields', () => {
         render(<ConfigEditor {...defaultProps} />);
-        
-        expect(screen.getByTestId('config-editor-path')).toBeInTheDocument();
-        expect(screen.getByTestId('config-editor-api-key')).toBeInTheDocument();
-        expect(screen.getByTestId('config-editor-cache-time')).toBeInTheDocument();
+
+        expect(screen.getByTestId('field-path')).toBeInTheDocument();
+        expect(screen.getByTestId('field-api-key')).toBeInTheDocument();
+        expect(screen.getByTestId('field-cache-time')).toBeInTheDocument();
+        expect(screen.getByTestId('field-timezone')).toBeInTheDocument();
     });
 
-    it('displays current values in inputs', () => {
+    it('handles path change', () => {
         render(<ConfigEditor {...defaultProps} />);
-        
-        expect(screen.getByTestId('config-editor-path')).toHaveValue('test.server.com');
-        expect(screen.getByTestId('config-editor-api-key')).toHaveValue('test-api-key');
-        expect(screen.getByTestId('config-editor-cache-time')).toHaveValue('6000');
-    });
 
-    it('calls onOptionsChange when path changes', () => {
-        render(<ConfigEditor {...defaultProps} />);
-        
         const pathInput = screen.getByTestId('config-editor-path');
-        fireEvent.change(pathInput, { target: { value: 'new.server.com' } });
-        
+        fireEvent.change(pathInput, { target: { value: 'test.server.com' } });
+
         expect(mockOnOptionsChange).toHaveBeenCalledWith({
             ...defaultProps.options,
             jsonData: {
                 ...defaultProps.options.jsonData,
-                path: 'new.server.com',
+                path: 'test.server.com',
             },
         });
     });
 
-    it('calls onOptionsChange when API key changes', () => {
+    it('handles API key change', () => {
         render(<ConfigEditor {...defaultProps} />);
-        
+
         const apiKeyInput = screen.getByTestId('config-editor-api-key');
         fireEvent.change(apiKeyInput, { target: { value: 'new-api-key' } });
-        
+
         expect(mockOnOptionsChange).toHaveBeenCalledWith({
             ...defaultProps.options,
             secureJsonData: {
+                ...defaultProps.options.secureJsonData,
                 apiKey: 'new-api-key',
             },
         });
     });
 
-    it('calls onOptionsChange when cache time changes', () => {
+    it('handles API key reset', () => {
         render(<ConfigEditor {...defaultProps} />);
-        
-        const cacheTimeInput = screen.getByTestId('config-editor-cache-time');
-        fireEvent.change(cacheTimeInput, { target: { value: '3600' } });
-        
-        expect(mockOnOptionsChange).toHaveBeenCalledWith({
-            ...defaultProps.options,
-            jsonData: {
-                ...defaultProps.options.jsonData,
-                cacheTime: 3600,
-            },
-        });
-    });
 
-    it('resets API key when reset button is clicked', () => {
-        render(<ConfigEditor {...defaultProps} />);
-        
         const resetButton = screen.getByTestId('config-editor-api-key-reset');
         fireEvent.click(resetButton);
-        
+
         expect(mockOnOptionsChange).toHaveBeenCalledWith({
             ...defaultProps.options,
             secureJsonFields: {
@@ -136,17 +151,79 @@ describe('ConfigEditor', () => {
         });
     });
 
-    it('handles missing jsonData gracefully', () => {
-        const propsWithoutJsonData = {
+    it('handles cache time change with valid value', () => {
+        render(<ConfigEditor {...defaultProps} />);
+
+        const cacheTimeInput = screen.getByTestId('config-editor-cache-time');
+        fireEvent.change(cacheTimeInput, { target: { value: '120' } });
+
+        expect(mockOnOptionsChange).toHaveBeenCalledWith({
+            ...defaultProps.options,
+            jsonData: {
+                ...defaultProps.options.jsonData,
+                cacheTime: 120,
+            },
+        });
+    });
+
+    it('sets default cache time when empty value is provided', () => {
+        render(<ConfigEditor {...defaultProps} />);
+
+        const cacheTimeInput = screen.getByTestId('config-editor-cache-time');
+        fireEvent.change(cacheTimeInput, { target: { value: '' } });
+
+        expect(mockOnOptionsChange).toHaveBeenCalledWith({
+            ...defaultProps.options,
+            jsonData: {
+                ...defaultProps.options.jsonData,
+                cacheTime: 60,
+            },
+        });
+    });
+
+    it('does not update cache time for invalid values', () => {
+        render(<ConfigEditor {...defaultProps} />);
+
+        const cacheTimeInput = screen.getByTestId('config-editor-cache-time');
+        fireEvent.change(cacheTimeInput, { target: { value: '5' } });
+
+        expect(mockOnOptionsChange).not.toHaveBeenCalled();
+    });
+
+    it('handles timezone change', () => {
+        render(<ConfigEditor {...defaultProps} />);
+
+        const timezoneSelect = screen.getByTestId('timezone-combobox');
+        fireEvent.change(timezoneSelect, { target: { value: 'America/New_York' } });
+
+        expect(mockOnOptionsChange).toHaveBeenCalledWith({
+            ...defaultProps.options,
+            jsonData: {
+                ...defaultProps.options.jsonData,
+                timezone: 'America/New_York',
+            },
+        });
+    });
+
+    it('displays current values in form fields', () => {
+        const propsWithData = {
             ...defaultProps,
             options: {
                 ...defaultProps.options,
-                jsonData: {} as MyDataSourceOptions,
+                jsonData: {
+                    path: 'existing.server.com',
+                    cacheTime: 180,
+                    timezone: 'America/New_York',
+                },
+                secureJsonData: {
+                    apiKey: 'existing-key',
+                },
             },
         };
-        
-        render(<ConfigEditor {...propsWithoutJsonData} />);
-        
-        expect(screen.getByTestId('config-editor-cache-time')).toHaveValue('6000');
+
+        render(<ConfigEditor {...propsWithData} />); expect(screen.getByTestId('config-editor-path')).toHaveValue('existing.server.com');
+        expect(screen.getByTestId('config-editor-api-key')).toHaveValue('existing-key');
+        expect(screen.getByTestId('config-editor-cache-time')).toHaveValue(180);
+        expect(screen.getByTestId('timezone-combobox')).toHaveValue('America/New_York');
     });
 });

@@ -1,69 +1,34 @@
 {
   "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
   "type": "datasource",
-  "name": "PRTG-GRAFANA",
+  "name": "Grafana-PRTG",
   "id": "grafana-prtg-datasource",
-  "metrics": true,
-  "backend": true,
+  "autoEnabled": true,
+  "alerting": true,
   "annotations": true,
   "logs": true,
-  "tracing": true,
+  "metrics": true,
+  "backend": true,
   "executable": "gpx_prtg",
-  "streaming": true,
-  "alerting": true,
   "info": {
-    "description": "Grafana datasource plugin whit backend for PRTG",
+    "description": "Grafana datasource plugin for PRTG Network Monitor",
     "author": {
-      "name": "Mustafa Özdemir",
-      "email": "mustafa.ozdemir1408@gmail.com"
+      "name": "Mustafa Özdemir"
     },
-    "keywords": ["datasource", "PRTG", "grafana"],
+    "keywords": [
+      "datasource"
+    ],
     "logos": {
       "small": "img/logo.svg",
       "large": "img/logo.svg"
     },
-    "links": [
-      {
-        "name": "GitHub",
-        "url": "https://github.com/1DeliDolu/PRTG.git"
-      }
-    ],
-    "screenshots": [
-      {
-        "path": "img/1739797413883.png"
-      }
-    ],
+    "links": [],
+    "screenshots": [],
     "version": "%VERSION%",
     "updated": "%TODAY%"
   },
-  "routes": [
-    {
-      "path": "{{.JsonData.url}}",
-      "method": "GET",
-      "urlParams": [
-        {
-          "name": "apitoken",
-          "content": "{{.SecureJsonData.apiKey}}"
-        }
-      ]
-    }
-  ],
-  "includes": [
-    {
-      "name": "overview",
-      "path": "dashboards/overview.json",
-      "type": "dashboard"
-    }
-  ],
   "dependencies": {
     "grafanaDependency": ">=10.4.0",
-    "plugins": [
-      {
-        "id": "grafana-prtg-datasource",
-        "name": "PRTG-GRAFANA",
-        "type": "datasource",
-        "version": "1.0.0"
-      }
-    ]
+    "plugins": []
   }
 }

@@ -7,7 +7,7 @@ services:
       context: .
       args:
         grafana_image: ${GRAFANA_IMAGE:-grafana-enterprise}
-        grafana_version: ${GRAFANA_VERSION:-11.5.3}
+        grafana_version: ${GRAFANA_VERSION:-12.0.2}
         development: ${DEVELOPMENT:-false}
         anonymous_auth_enabled: ${ANONYMOUS_AUTH_ENABLED:-true}
     ports:
@@ -21,7 +21,6 @@ services:
     volumes:
       - ../dist:/var/lib/grafana/plugins/grafana-prtg-datasource
       - ../provisioning:/etc/grafana/provisioning
-      - ../provisioning/grafana.ini:/etc/grafana/grafana.ini
       - ..:/root/grafana-prtg-datasource
 
     environment:
@@ -30,10 +29,3 @@ services:
       GF_LOG_LEVEL: debug
       GF_DATAPROXY_LOGGING: 1
       GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: grafana-prtg-datasource
-      # Authentication settings
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
-      GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION: false
-      GF_AUTH_ANONYMOUS_ENABLED: true
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
-      GF_USERS_ALLOW_SIGN_UP: false

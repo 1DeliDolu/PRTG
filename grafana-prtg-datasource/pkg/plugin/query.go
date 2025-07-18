@@ -59,19 +59,11 @@ func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, quer
 }
 
 // Add this helper method
-func (d *Datasource) executeQuery(ctx context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
+func (d *Datasource) executeQuery(ctx context.Context, _ backend.PluginContext, query backend.DataQuery) backend.DataResponse {
 	// Start tracing
-	ctx, span := d.tracer.StartSpan(ctx, "query")
-	defer span.End()
-	backend.Logger.Info("PluginContext", "pCtx", pCtx)
-
-	// Start timing and initial logging
-	start := time.Now()
-	d.logger.Info("Starting query execution",
-		"queryType", query.QueryType,
-		"refID", query.RefID,
-		"timeRange", fmt.Sprintf("%v to %v", query.TimeRange.From, query.TimeRange.To),
-	)
+	
+	
+	// Info logging removed to reduce terminal output
 
 	// Parse query model
 	var qm queryModel
@@ -80,8 +72,8 @@ func (d *Datasource) executeQuery(ctx context.Context, pCtx backend.PluginContex
 			"error", err,
 			"raw_query", string(query.JSON),
 		)
-		d.metrics.IncError("query_parse_error")
-		recordError(span, err, "Failed to parse query")
+
+	
 		return backend.ErrDataResponse(backend.StatusBadRequest, "failed to parse query")
 	}
 	// Generate stable cache key that includes time range and refId
@@ -123,17 +115,11 @@ func (d *Datasource) executeQuery(ctx context.Context, pCtx backend.PluginContex
 	d.cacheMutex.RUnlock()
 
 	// Add query attributes to span
-	addQueryAttributes(span, qm)
+
 
 	// Defer metrics and logging
 	defer func() {
-		duration := time.Since(start).Seconds()
-		d.metrics.ObserveQueryDuration(qm.QueryType, duration)
-		d.logger.Info("Query completed",
-			"duration", duration,
-			"queryType", qm.QueryType,
-			"refID", query.RefID,
-		)
+		// Info logging removed to reduce terminal output
 	}()
 
 	// Execute query based on type
@@ -142,7 +128,7 @@ func (d *Datasource) executeQuery(ctx context.Context, pCtx backend.PluginContex
 	case "metrics":
 		if qm.Channel == "" && len(qm.ChannelArray) == 0 {
 			d.logger.Error("Channel selection required for metrics query")
-			d.metrics.IncError("missing_channel")
+	
 			return backend.ErrDataResponse(backend.StatusBadRequest, "channel selection required")
 		}
 		response = d.handleMetricsQuery(ctx, qm, query.TimeRange, fmt.Sprintf("metrics_%s", query.RefID))
@@ -159,21 +145,15 @@ func (d *Datasource) executeQuery(ctx context.Context, pCtx backend.PluginContex
 		}
 
 	case "manual":
-		d.logger.Debug("Executing manual query",
-			"method", qm.ManualMethod,
-			"objectId", qm.ManualObjectId,
-		)
+			// Debug logging removed to reduce terminal output
 		response = d.handleManualQuery(qm, query.TimeRange, fmt.Sprintf("manual_%s", query.RefID))
 
 	case "text", "raw":
 		response = d.handlePropertyQuery(ctx, qm, qm.Property, qm.FilterProperty, fmt.Sprintf("property_%s", query.RefID))
 
 	default:
-		d.logger.Warn("Unknown query type",
-			"type", qm.QueryType,
-			"refID", query.RefID,
-		)
-		d.metrics.IncError("unknown_query_type")
+		// Warn logging removed to reduce terminal output
+		
 		return backend.DataResponse{
 			Frames: []*data.Frame{
 				data.NewFrame(fmt.Sprintf("unknown_%s", query.RefID)),
@@ -191,10 +171,7 @@ func (d *Datasource) executeQuery(ctx context.Context, pCtx backend.PluginContex
 		}
 		d.cacheMutex.Unlock()
 
-		d.logger.Debug("Cached response",
-			"key", cacheKeyStr,
-			"duration", cacheDuration,
-		)
+			// Debug logging removed to reduce terminal output
 	}
 
 	// Record any errors in the response
@@ -204,24 +181,20 @@ func (d *Datasource) executeQuery(ctx context.Context, pCtx backend.PluginContex
 			"queryType", qm.QueryType,
 			"refID", query.RefID,
 		)
-		d.metrics.IncError("query_execution")
-		recordError(span, response.Error, "Query execution failed")
+		
+		
 	}
 
 	return response
 }
 
 /* =================================== METRICS HANDLER ======================================== */
-func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, timeRange backend.TimeRange, baseFrameName string) backend.DataResponse {
-	_, span := d.tracer.StartSpan(ctx, "handleMetricsQuery")
-	defer span.End()
+func (d *Datasource) handleMetricsQuery(_ context.Context, qm queryModel, timeRange backend.TimeRange, baseFrameName string) backend.DataResponse {
 
-	queryStart := time.Now()
-	d.logger.Debug("Fetching historical data",
-		"sensorId", qm.SensorId,
-		"timeRange", fmt.Sprintf("%v to %v", timeRange.From, timeRange.To),
-		"channels", qm.ChannelArray,
-	)
+	
+
+	
+	// Debug logging removed to reduce terminal output
 
 	// Initialize response
 	response := backend.DataResponse{
@@ -235,15 +208,15 @@ func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, time
 			"error", err,
 			"sensorId", qm.SensorId,
 		)
-		d.metrics.IncError("historical_data_fetch")
-		recordError(span, err, "Failed to fetch historical data")
+		
+		
 		return backend.ErrDataResponse(backend.StatusInternal, "failed to fetch data")
 	}
 
 	// Check if we have channels to process
 	if len(qm.ChannelArray) == 0 && qm.Channel == "" {
 		d.logger.Error("No channels specified")
-		d.metrics.IncError("missing_channel")
+	
 		return backend.ErrDataResponse(backend.StatusBadRequest, "channel selection required")
 	}
 	// Use ChannelArray if available, otherwise fall back to single channel
@@ -432,23 +405,19 @@ func (d *Datasource) handleMetricsQuery(ctx context.Context, qm queryModel, time
 		response.Frames = append(response.Frames, data.NewFrame(fmt.Sprintf("%s_empty", baseFrameName)))
 	}
 
-	duration := time.Since(queryStart)
-	d.metrics.ObserveAPILatency("historical_data", duration.Seconds())
+	
+	
 
 	return response
 }
 
 /* =================================== MANUAL QUERY HANDLER =================================== */
-func (d *Datasource) handleManualQuery(qm queryModel, timeRange backend.TimeRange, frameBaseName string) backend.DataResponse {
-	d.logger.Debug("Processing manual query",
-		"method", qm.ManualMethod,
-		"objectId", qm.ManualObjectId,
-		"timeRange", fmt.Sprintf("%v to %v", timeRange.From, timeRange.To),
-	)
+func (d *Datasource) handleManualQuery(qm queryModel, _ backend.TimeRange, frameBaseName string) backend.DataResponse {
+	// Debug logging removed to reduce terminal output
 
 	if qm.ManualMethod == "" {
 		d.logger.Error("Manual method is required")
-		d.metrics.IncError("missing_manual_method")
+		
 		return backend.ErrDataResponse(backend.StatusBadRequest, "manual method is required")
 	}
 
@@ -458,7 +427,7 @@ func (d *Datasource) handleManualQuery(qm queryModel, timeRange backend.TimeRang
 			"error", err,
 			"method", qm.ManualMethod,
 		)
-		d.metrics.IncError("manual_query_failed")
+		
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("API request failed: %v", err))
 	}
 
@@ -499,24 +468,17 @@ func (d *Datasource) handleManualQuery(qm queryModel, timeRange backend.TimeRang
 }
 
 /* =================================== PROPERTY HANDLER ======================================= */
-func (d *Datasource) handlePropertyQuery(ctx context.Context, qm queryModel, property, filterProperty string, baseFrameName string) backend.DataResponse {
-	ctx, span := d.tracer.StartSpan(ctx, "handlePropertyQuery")
-	backend.Logger.Info("Context", "ctx", ctx)
-	defer span.End()
+func (d *Datasource) handlePropertyQuery(_ context.Context, qm queryModel, property, filterProperty string, baseFrameName string) backend.DataResponse {
 
-	d.logger.Debug("Processing property query",
-		"property", property,
-		"filterProperty", filterProperty,
-	)
+
+
+	// Debug logging removed to reduce terminal output
 
 	// Raw mod kontrolü
 	isRawMode := qm.QueryType == "raw"
 	if isRawMode && !strings.HasSuffix(filterProperty, "_raw") {
 		filterProperty += "_raw"
-		d.logger.Debug("Converting to raw property",
-			"original", property,
-			"rawProperty", filterProperty,
-		)
+				// Debug logging removed to reduce terminal output
 	}
 
 	var timesRT []time.Time
@@ -661,7 +623,21 @@ func (d *Datasource) handlePropertyQuery(ctx context.Context, qm queryModel, pro
 	}
 
 	frameName := fmt.Sprintf("%s_%s_%s", baseFrameName, qm.Property, filterProperty)
-	frame := createPropertyFrame(timesRT, valuesRT, frameName, qm.Property, filterProperty)
+
+	// Build display name with optional prefixes (like in handleMetricsQuery)
+	displayName := qm.Property
+	if qm.IncludeGroupName && qm.Group != "" {
+		displayName = fmt.Sprintf("%s - %s", qm.Group, displayName)
+	}
+	if qm.IncludeDeviceName && qm.Device != "" {
+		displayName = fmt.Sprintf("%s - %s", qm.Device, displayName)
+	}
+	if qm.IncludeSensorName && qm.Sensor != "" {
+		displayName = fmt.Sprintf("%s - %s", qm.Sensor, displayName)
+	}
+	displayName = fmt.Sprintf("%s (%s)", displayName, filterProperty)
+
+	frame := createPropertyFrameWithDisplayName(timesRT, valuesRT, frameName, displayName)
 
 	return backend.DataResponse{
 		Frames: []*data.Frame{frame},
@@ -669,7 +645,7 @@ func (d *Datasource) handlePropertyQuery(ctx context.Context, qm queryModel, pro
 }
 
 /* =================================== FRAME CREATOR ========================================== */
-func createPropertyFrame(times []time.Time, values []interface{}, frameName, property, filterProperty string) *data.Frame {
+func createPropertyFrameWithDisplayName(times []time.Time, values []interface{}, frameName, displayName string) *data.Frame {
 	if len(times) == 0 || len(values) == 0 {
 		return data.NewFrame(frameName + "_empty")
 	}
@@ -703,7 +679,6 @@ func createPropertyFrame(times []time.Time, values []interface{}, frameName, pro
 		valueField = data.NewField("Value", nil, strVals)
 	}
 
-	displayName := fmt.Sprintf("%s - (%s)", property, filterProperty)
 	valueField.Config = &data.FieldConfig{
 		DisplayName: displayName,
 	}

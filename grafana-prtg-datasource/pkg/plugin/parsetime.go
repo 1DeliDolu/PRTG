@@ -10,14 +10,13 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 )
 
-var defaultTimezone = "Europe/Berlin" // Default PRTG timezone
+var defaultTimezone = "Avrupa/Istanbul" // Default PRTG timezone
 
 // SetDefaultTimezone sets the default timezone for parsing dates
 // Call this during plugin initialization with the timezone from settings
 func SetDefaultTimezone(timezone string) {
 	if timezone != "" {
 		defaultTimezone = timezone
-		backend.Logger.Info("Setting default timezone for date parsing", "timezone", timezone)
 	}
 }
 
@@ -46,9 +45,6 @@ func parsePRTGDateTime(datetime string) (time.Time, string, error) {
 		loc, err := time.LoadLocation(defaultTimezone)
 		if err != nil {
 			loc = time.UTC
-			backend.Logger.Warn("Failed to load default timezone, using UTC",
-				"timezone", defaultTimezone,
-				"error", err)
 		}
 
 		startDateTime, err := time.ParseInLocation("02.01.2006 15:04:05", startTimeStr, loc)
@@ -65,9 +61,6 @@ func parsePRTGDateTime(datetime string) (time.Time, string, error) {
 	sourceLoc, err := time.LoadLocation(defaultTimezone)
 	if err != nil {
 		sourceLoc = time.UTC
-		backend.Logger.Warn("Failed to load default timezone, using UTC",
-			"timezone", defaultTimezone,
-			"error", err)
 	}
 
 	// User's local timezone for display
@@ -80,8 +73,10 @@ func parsePRTGDateTime(datetime string) (time.Time, string, error) {
 		"2006-01-02T15:04:05",     // ISO 8601 without TZ
 		"2006-01-02 15:04:05",     // ISO with space
 		"2006/01/02 15:04:05",     // Slash-separated
-		"01/02/2006 03:04:05 PM",  // US 12-hour
-		"01/02/2006 15:04:05",     // US 24-hour
+		"01/02/2006 03:04:05 PM",  // US 12-hour, zero-padded
+		"01/02/2006 15:04:05",     // US 24-hour, zero-padded
+		"1/2/2006 3:04:05 PM",     // US 12-hour, single digit (EKLENDİ)
+		"1/2/2006 15:04:05",       // US 24-hour, single digit (EKLENDİ)
 		"02 Jan 2006 15:04:05",    // DMY with text month
 		"02 Jan 2006 03:04:05 PM", // DMY with text month, 12-hour
 		"Jan 2, 2006 15:04:05",    // US-style text month
@@ -89,6 +84,7 @@ func parsePRTGDateTime(datetime string) (time.Time, string, error) {
 		"2006-01-02",              // Just date in ISO format
 		"02.01.2006",              // Just date in European format
 		"01/02/2006",              // Just date in US format
+		"1/2/2006",                // Just date in US format, single digit
 	}
 
 	var lastErr error

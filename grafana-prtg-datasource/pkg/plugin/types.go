@@ -404,74 +404,20 @@ type QueryCacheEntry struct {
 	Updating   bool
 }
 
-// Add after QueryCacheEntry struct...
 
-type streamManager struct {
-	streams          map[string]*activeStream
-	mu               sync.RWMutex
-	defaultCacheTime time.Duration
-	activeStreams    map[string]map[string]*activeStream // panelId -> streamId -> stream
-}
 
-type streamStatus struct {
-	active    bool
-	updating  bool
-	lastError error
-}
+ 
 
-type channelState struct {
-	lastValue float64
-	isActive  bool
-	buffer    *dataBuffer // Reference to dataBuffer type
-}
 
-// Use this dataBuffer definition and remove the one in streaming.go
-type dataBuffer struct {
-	times  []time.Time
-	values []float64
-	size   int64
-}
 
-type activeStream struct {
-	sensorId          string
-	channelArray      []string
-	interval          time.Duration
-	lastUpdate        time.Time
-	group             string
-	device            string
-	sensor            string
-	includeGroupName  bool
-	includeDeviceName bool
-	includeSensorName bool
-	fromTime          time.Time
-	toTime            time.Time
-	cacheTime         time.Duration
-	timeRange         *backend.TimeRange
-	isActive          bool
-	updateChan        chan struct{}
-	status            *streamStatus
-	refID             string // Add RefID for multiple streams support
-	streamID          string // Unique identifier for the stream
-	panelId           string // Panel identifier
-	queryId           string // Query identifier within the panel
-	multiChannelKey   string
-	channelStates     map[string]*channelState
-	updateMode        string
-	bufferSize        int64
-	errorCount        int
-	lastDataTimestamp int64 // Track when data was last sent successfully
-}
 
 /* =================================== QUERY MODEL ============================================== */
 type Datasource struct {
 	baseURL       string
 	api           PRTGAPI
 	logger        PrtgLogger
-	tracer        *Tracer
-	metrics       *Metrics
 	mux           backend.QueryDataHandler
 	queryCache    map[string]*QueryCacheEntry
 	cacheMutex    sync.RWMutex
 	cacheTime     time.Duration
-	streamManager *streamManager
 }

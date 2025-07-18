@@ -23,7 +23,7 @@
       "substitutePath": [
         {
           "from": "${workspaceFolder}",
-          "to": "/root/grafana-prtg-datasource"
+          "to": "/root/maxmarkusprogram-prtg-datasource"
         }
       ]
     }

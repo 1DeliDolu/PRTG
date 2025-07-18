@@ -3,14 +3,12 @@ import {
   ScopedVars, 
   AnnotationEvent,
   DataFrame,
-  DataQueryRequest,
-  DataQueryResponse,
-  LiveChannelScope,
+
 } from '@grafana/data';
 import { 
   DataSourceWithBackend, 
   getTemplateSrv,
-  getGrafanaLiveSrv,
+
 } from '@grafana/runtime';
 import { Observable, from, merge, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
@@ -98,119 +96,4 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
     },
   };
 
-  query(request: DataQueryRequest<MyQuery>): Observable<DataQueryResponse> {
-    // Only handle streaming for metrics queries
-    const streamingTargets = request.targets.filter(
-      query => query.isStreaming && query.queryType === QueryType.Metrics
-    );
-    const regularTargets = request.targets.filter(
-      query => !query.isStreaming || query.queryType !== QueryType.Metrics
-    );
-    
-    const observables: Array<Observable<DataQueryResponse>> = [];
-
-    // Process streaming targets
-    if (streamingTargets.length > 0) {
-      streamingTargets.forEach((query) => {
-        // Add panelId to query for stream ID generation
-        const queryWithPanelId = {
-          ...query,
-          panelId: request.panelId?.toString()
-        };
-        
-        // Create a unique, stable stream ID
-        const streamId = this.getStreamId(queryWithPanelId);
-        const streamPath = `prtg-stream/${streamId}`;
-        
-        // Set up the data stream
-        const streamObs = getGrafanaLiveSrv().getDataStream({
-          addr: {
-            scope: LiveChannelScope.DataSource,
-            namespace: this.uid,
-            path: streamPath,
-            data: {
-              ...query,
-              streamId,
-              panelId: request.panelId?.toString(),
-              queryId: query.refId,
-              timeRange: {
-                from: request.range.from.valueOf(),
-                to: request.range.to.valueOf(),
-              },
-              // Use provided values or defaults
-              cacheTime: query.cacheTime,
-              updateMode: query.updateMode,
-              bufferSize: query.bufferSize,
-            },
-          },
-        }).pipe(
-          map((response) => {
-            // Enhance frame with streaming metadata
-            const frameData = response.data || [];
-            frameData.forEach((frame) => {
-              if (frame && frame.meta) {
-                frame.meta = {
-                  ...frame.meta,
-                  streaming: true,
-                  streamId,
-                  preferredVisualisationType: 'graph',
-                };
-              }
-            });
-            return { data: frameData };
-          }),
-          catchError((err) => {
-            console.error('Stream error:', err);
-            return throwError(() => new Error(`Streaming error: ${err.message || 'Unknown error'}`));
-          })
-        );
-        
-        observables.push(streamObs);
-      });
-    }
-
-    // Process regular targets
-    if (regularTargets.length > 0) {
-      observables.push(
-        super.query({
-          ...request,
-          targets: regularTargets,
-        }).pipe(
-          catchError((err) => {
-            console.error('Query error:', err);
-            return throwError(() => err);
-          })
-        )
-      );
-    }
-
-    // Return combined observables or empty data
-    if (observables.length === 0) {
-      return from([{ data: [] }]);
-    }
-    
-    return merge(...observables);
-  }
-
-  // Improved stream ID generation for better stability
-  private getStreamId(query: MyQuery & { panelId?: string }): string {
-    const components = [
-      query.panelId || 'default',
-      query.refId || 'A',
-      query.sensorId || '',
-      Array.isArray(query.channelArray) && query.channelArray.length > 0 
-        ? query.channelArray.join('-') 
-        : query.channel || '',
-    ];
-    return components.filter(Boolean).join('_');
-  }
-
-  // Stream control methods
-  async getStreamStatus(streamId: string): Promise<any> {
-    return this.getResource(`stream-status/${streamId}`);
-  }
-
-  async stopStream(streamId: string): Promise<void> {
-    return this.getResource(`stop-stream/${streamId}`);
-  }
 }

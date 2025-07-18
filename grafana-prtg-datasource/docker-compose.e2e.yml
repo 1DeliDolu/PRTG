@@ -1,0 +1,17 @@
+# docker-compose.e2e.yml
+version: '3.8'
+services:
+  e2e-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.e2e
+    volumes:
+      - ./e2e/testFoto:/app/e2e/testFoto
+    environment:
+      - DISPLAY=:99
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge
